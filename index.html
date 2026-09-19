@@ -566,6 +566,67 @@
   #crash-card footer{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
   #crash-card .note{margin-top:12px;color:var(--text-dim);font-size:10.5px;line-height:1.6;border-top:1px dashed var(--line);padding-top:10px;}
   #crash-card .auto-note{margin-top:10px;color:var(--amber);font-size:11px;line-height:1.6;background:rgba(255,176,32,.08);border:1px solid #4a3a14;border-radius:3px;padding:8px 10px;}
+
+  /* ---------- Flight history / replay ---------- */
+  #history-overlay{
+    position:fixed;inset:0;z-index:50;
+    background:rgba(3,5,8,.88);
+    display:none;align-items:center;justify-content:center;
+    padding:20px;
+  }
+  #history-overlay.show{display:flex;}
+  #history-card{
+    width:min(640px,94vw);max-height:88vh;overflow-y:auto;
+    background:var(--panel);
+    border:1px solid var(--cyan);
+    border-radius:4px;
+    box-shadow:0 0 60px rgba(78,205,255,.14);
+  }
+  #history-card header{
+    padding:16px 20px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  #history-card header h2{
+    margin:0;font-size:16px;letter-spacing:3px;color:var(--cyan);
+    font-family:'Rajdhani',sans-serif;font-weight:700;
+  }
+  #history-card .body{padding:10px 20px;font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  #history-card footer{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+  .hist-empty{padding:24px 4px;color:var(--text-dim);text-align:center;}
+  .hist-item{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px 10px;border-bottom:1px dashed var(--line);
+  }
+  .hist-item:last-child{border-bottom:none;}
+  .hist-meta{display:flex;flex-direction:column;gap:3px;}
+  .hist-title{font-weight:600;color:var(--text);font-size:12.5px;}
+  .hist-title.crashed{color:var(--red);}
+  .hist-sub{color:var(--text-dim);font-size:10.5px;letter-spacing:.5px;}
+  .hist-actions{display:flex;gap:8px;flex:0 0 auto;}
+  .hist-actions button{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:1px;
+    background:transparent;border:1px solid var(--line);color:var(--text-dim);
+    border-radius:3px;padding:6px 10px;cursor:pointer;
+  }
+  .hist-actions button:hover{border-color:var(--cyan);color:var(--cyan);}
+  .hist-actions button.danger:hover{border-color:var(--red);color:var(--red);}
+
+  #replay-bar{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;
+    display:none;align-items:center;gap:14px;
+    background:rgba(6,10,16,.96);border-top:1px solid var(--cyan);
+    padding:10px 20px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);
+  }
+  #replay-bar.show{display:flex;}
+  #replay-bar .tag{color:var(--cyan);letter-spacing:2px;font-weight:700;flex:0 0 auto;}
+  #replay-bar button{
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+    background:transparent;border:1px solid var(--line);color:var(--text);
+    border-radius:3px;padding:6px 12px;cursor:pointer;flex:0 0 auto;
+  }
+  #replay-bar button:hover{border-color:var(--cyan);color:var(--cyan);}
+  #replay-bar input[type=range]{flex:1 1 auto;accent-color:var(--cyan);}
+  #replay-bar .clockv{flex:0 0 auto;color:var(--text-dim);min-width:90px;text-align:right;}
 </style>
 </head>
 <body>
@@ -621,7 +682,7 @@
     </div>
 
     <div class="home-footer">
-      Built with a cannon.js rigid-body simulation, HTML5 Canvas rendering, and vanilla JavaScript — no backend, no real flight-controller link.
+      Built with a cannon.js rigid-body simulation, HTML5 Canvas rendering, and vanilla JavaScript — real MAVLink v2 telemetry export, local flight history, no live flight-controller link (yet).
       <br><br>
       <strong>Developed and Managed by — Omm Sanjog</strong>
     </div>
@@ -727,6 +788,7 @@
   <div class="right">
     <div id="clock">T+00:00:00.0</div>
     <button class="btn home-btn" id="btnViewReport" disabled>📋 LAST REPORT</button>
+    <button class="btn home-btn" id="btnHistory">🕘 HISTORY</button>
     <button class="btn home-btn" id="btnHome">← HOME</button>
     <button class="btn kiosk-btn" id="btnKiosk">⛶ KIOSK</button>
   </div>
@@ -833,9 +895,32 @@
     </div>
     <footer>
       <button class="btn land" id="btnDownloadReport">⬇ DOWNLOAD REPORT (PNG)</button>
+      <button class="btn land" id="btnDownloadTlog">⬇ EXPORT .TLOG (MAVLINK)</button>
       <button class="btn reset" id="btnCrashAck">CLOSE</button>
     </footer>
   </div>
+</div>
+
+<div id="history-overlay">
+  <div id="history-card">
+    <header>
+      <h2>FLIGHT HISTORY</h2>
+      <span class="idtag" id="historyCount">0 saved</span>
+    </header>
+    <div class="body" id="historyList"></div>
+    <footer>
+      <button class="btn reset" id="btnHistoryClearAll">CLEAR ALL</button>
+      <button class="btn reset" id="btnHistoryClose">CLOSE</button>
+    </footer>
+  </div>
+</div>
+
+<div id="replay-bar">
+  <span class="tag">▶ REPLAY</span>
+  <button id="btnReplayPlay">⏸ PAUSE</button>
+  <input type="range" id="replayScrub" min="0" max="100" value="0">
+  <span class="clockv" id="replayClock">T+00:00:00.0</span>
+  <button id="btnReplayExit">✕ EXIT REPLAY</button>
 </div>
 
 <footer id="credit">local simulation · cannon.js physics · no network calls · developed &amp; managed by Omm Sanjog</footer>
@@ -911,6 +996,24 @@
     lastTorqueMag: 0,
     lastAngAccel: 0,
     lastTWR: 0,
+
+    // real telemetry samples recorded through the flight (~10Hz), spanning
+    // the same ARM-to-now window as missionLog. Feeds the genuine MAVLink
+    // .tlog export and the flight-history replay feature — see
+    // sampleTelemetry(), buildMavlinkTlog(), and REPLAY below.
+    telemetrySamples: [],
+    lastTelemetrySampleT: -999,
+
+    // scrub-bar replay of a past flight loaded from local flight history —
+    // drives the same render()/updateHud() as live flight but from
+    // recorded samples instead of physics. See REPLAY below.
+    replay: {
+      active: false,
+      flight: null,
+      index: 0,
+      playing: false,
+      speed: 1,
+    },
   };
 
   const el = {
@@ -937,6 +1040,18 @@
     btnKiosk: document.getElementById('btnKiosk'),
     btnCrashAck: document.getElementById('btnCrashAck'),
     btnDownloadReport: document.getElementById('btnDownloadReport'),
+    btnDownloadTlog: document.getElementById('btnDownloadTlog'),
+    btnHistory: document.getElementById('btnHistory'),
+    historyOverlay: document.getElementById('history-overlay'),
+    historyList: document.getElementById('historyList'),
+    historyCount: document.getElementById('historyCount'),
+    btnHistoryClose: document.getElementById('btnHistoryClose'),
+    btnHistoryClearAll: document.getElementById('btnHistoryClearAll'),
+    replayBar: document.getElementById('replay-bar'),
+    replayScrub: document.getElementById('replayScrub'),
+    replayClock: document.getElementById('replayClock'),
+    btnReplayPlay: document.getElementById('btnReplayPlay'),
+    btnReplayExit: document.getElementById('btnReplayExit'),
     btnViewReport: document.getElementById('btnViewReport'),
     crashOverlay: document.getElementById('crash-overlay'),
   };
@@ -1001,6 +1116,45 @@
   // -> landing) shown in the incident report once it becomes available.
   function logMission(text){
     state.missionLog.push({ t: state.t, clock: el.clock.textContent, text });
+  }
+
+  // Samples real flight telemetry (~10Hz) into state.telemetrySamples —
+  // shares the ARM-to-now window as missionLog (both reset together on a
+  // fresh manual ARM). This buffer is the single source of truth behind
+  // both the MAVLink .tlog export and the flight-history replay feature,
+  // so what gets exported/replayed is exactly what the sim computed, not
+  // a re-derived approximation.
+  function sampleTelemetry(){
+    if(state.phase === 'idle' || state.replay.active) return;
+    if(state.t - state.lastTelemetrySampleT < 0.1) return;
+    state.lastTelemetrySampleT = state.t;
+    const yaw = Math.atan2(
+      2*(droneBody.quaternion.w*droneBody.quaternion.y + droneBody.quaternion.x*droneBody.quaternion.z),
+      1 - 2*(droneBody.quaternion.y*droneBody.quaternion.y + droneBody.quaternion.z*droneBody.quaternion.z)
+    );
+    state.telemetrySamples.push({
+      t: state.t,
+      clock: el.clock.textContent,
+      alt: state.altitude,
+      vspeed: state.vspeed,
+      posX: droneBody.position.x,
+      posZ: droneBody.position.z,
+      rollDeg: state.attitudeRoll,
+      pitchDeg: state.attitudePitch,
+      yaw: yaw,
+      rollRate: droneBody.angularVelocity.z,
+      pitchRate: droneBody.angularVelocity.x,
+      yawRate: droneBody.angularVelocity.y,
+      tilt: state.tilt,
+      cageSpin: state.cageSpin,
+      motorRpm: state.motorRpm,
+      throttle: state.throttle,
+      armed: state.armed,
+      phase: state.phase,
+    });
+    // cap the buffer (≈33 minutes at 10Hz) so a very long idle session can't
+    // grow this unbounded
+    if(state.telemetrySamples.length > 20000) state.telemetrySamples.shift();
   }
 
   function activateChip(id){
@@ -1621,6 +1775,9 @@
   el.btnArm.addEventListener('click', ()=>{
     if(state.armed) return;
     state.missionLog = []; // a fresh manual ARM starts a new flight's timeline
+    state.telemetrySamples = [];
+    state.lastTelemetrySampleT = -999;
+    state.flightStartWallClock = Date.now();
     logMission('Operator armed the airframe');
     performArmSequence();
   });
@@ -1810,6 +1967,387 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     return lines;
   }
 
+  /* ============================================================
+     MAVLINK v2 .tlog EXPORT
+     A genuine MAVLink v2 binary encoder — real packet framing, real
+     CRC16/MCRF4XX checksums with per-message CRC_EXTRA — built from the
+     samples in state.telemetrySamples (recorded every ~100ms through the
+     actual flight, see sampleTelemetry()). The output is a standard
+     QGroundControl/MAVProxy .tlog: a stream of
+     [8-byte big-endian microsecond timestamp][raw MAVLink packet] records.
+     It is honestly scoped as a *simulator* speaking the real protocol over
+     synthetic data, not a capture from a real autopilot — HEARTBEAT
+     reports MAV_AUTOPILOT_GENERIC (0), never PX4/ArduPilot IDs.
+  ============================================================ */
+
+  // MAVLink's standard CRC-16/MCRF4XX (X.25) accumulator — same bit
+  // pattern used by every real MAVLink implementation (pymavlink, the C
+  // library, etc.) so third-party tools can verify these packets.
+  function mavlinkCrcAccumulate(data, crc){
+    let tmp = (data ^ (crc & 0xFF)) & 0xFF;
+    tmp = (tmp ^ (tmp << 4)) & 0xFF;
+    return ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF;
+  }
+  function mavlinkCrc16(bytes, crcExtra){
+    let crc = 0xFFFF;
+    for(let i=0;i<bytes.length;i++) crc = mavlinkCrcAccumulate(bytes[i], crc);
+    crc = mavlinkCrcAccumulate(crcExtra, crc);
+    return crc;
+  }
+
+  // CRC_EXTRA is derived from each message's real XML field layout (part
+  // of the MAVLink spec itself) — these four are the well-known, unchanged
+  // constants for common.xml's HEARTBEAT / ATTITUDE / GLOBAL_POSITION_INT /
+  // STATUSTEXT.
+  const MAV_CRC_EXTRA = { HEARTBEAT: 50, ATTITUDE: 39, GLOBAL_POSITION_INT: 104, STATUSTEXT: 83 };
+  const MAV_MSG_ID = { HEARTBEAT: 0, ATTITUDE: 30, GLOBAL_POSITION_INT: 33, STATUSTEXT: 253 };
+  const MAV_SYSID = 1, MAV_COMPID = 1;
+  const HOME_LAT = 47.397742, HOME_LON = 8.545594, HOME_ALT_MSL = 488; // Zurich — a conventional SITL-style home fix, cosmetic only
+
+  function packMavlinkV2(msgName, payload){
+    const msgid = MAV_MSG_ID[msgName];
+    const crcExtra = MAV_CRC_EXTRA[msgName];
+    const len = payload.length;
+    const seq = packMavlinkV2._seq = ((packMavlinkV2._seq||0) + 1) & 0xFF;
+    // header = everything after the STX marker, which is what the CRC covers
+    const header = new Uint8Array([len, 0, 0, seq, MAV_SYSID, MAV_COMPID, msgid & 0xFF, (msgid>>8)&0xFF, (msgid>>16)&0xFF]);
+    const crcBuf = new Uint8Array(header.length + payload.length);
+    crcBuf.set(header, 0);
+    crcBuf.set(payload, header.length);
+    const crc = mavlinkCrc16(crcBuf, crcExtra);
+    const packet = new Uint8Array(1 + header.length + payload.length + 2);
+    packet[0] = 0xFD; // MAVLink v2 STX
+    packet.set(header, 1);
+    packet.set(payload, 1 + header.length);
+    packet[packet.length-2] = crc & 0xFF;
+    packet[packet.length-1] = (crc>>8) & 0xFF;
+    return packet;
+  }
+
+  function mavEncodeHeartbeat(sample){
+    const buf = new ArrayBuffer(9);
+    const dv = new DataView(buf);
+    dv.setUint32(0, 0, true);                 // custom_mode
+    dv.setUint8(4, 2);                        // type: MAV_TYPE_QUADROTOR
+    dv.setUint8(5, 0);                        // autopilot: MAV_AUTOPILOT_GENERIC — honest: this is a simulator, not a real FC
+    dv.setUint8(6, sample.armed ? 0x80 : 0);  // base_mode: MAV_MODE_FLAG_SAFETY_ARMED bit
+    const status = sample.phase==='crashed' ? 6 : (sample.phase==='recovering' ? 5 : (sample.armed ? 4 : 3)); // EMERGENCY/CRITICAL/ACTIVE/STANDBY
+    dv.setUint8(7, status);
+    dv.setUint8(8, 3);                        // mavlink_version
+    return new Uint8Array(buf);
+  }
+
+  function mavEncodeAttitude(sample){
+    const buf = new ArrayBuffer(28);
+    const dv = new DataView(buf);
+    dv.setUint32(0, Math.max(0, Math.round(sample.t*1000)) >>> 0, true);
+    dv.setFloat32(4, sample.rollDeg*Math.PI/180, true);
+    dv.setFloat32(8, sample.pitchDeg*Math.PI/180, true);
+    dv.setFloat32(12, sample.yaw, true);
+    dv.setFloat32(16, sample.rollRate, true);
+    dv.setFloat32(20, sample.pitchRate, true);
+    dv.setFloat32(24, sample.yawRate, true);
+    return new Uint8Array(buf);
+  }
+
+  function mavEncodeGlobalPositionInt(sample, prevSample){
+    const buf = new ArrayBuffer(28);
+    const dv = new DataView(buf);
+    const lat = HOME_LAT + (sample.posZ*0.000009);
+    const lon = HOME_LON + (sample.posX*0.000009/Math.cos(HOME_LAT*Math.PI/180));
+    let vxCm = 0, vzCm = 0;
+    if(prevSample){
+      const ddt = Math.max(0.001, sample.t - prevSample.t);
+      vxCm = (sample.posX - prevSample.posX) / ddt * 100;
+      vzCm = (sample.posZ - prevSample.posZ) / ddt * 100;
+    }
+    const clamp16 = v => Math.max(-32768, Math.min(32767, Math.round(v)));
+    dv.setUint32(0, Math.max(0, Math.round(sample.t*1000)) >>> 0, true);
+    dv.setInt32(4, Math.round(lat*1e7), true);
+    dv.setInt32(8, Math.round(lon*1e7), true);
+    dv.setInt32(12, Math.round((HOME_ALT_MSL+sample.alt)*1000), true);
+    dv.setInt32(16, Math.round(sample.alt*1000), true);
+    dv.setInt16(20, clamp16(vxCm), true);
+    dv.setInt16(22, clamp16(vzCm), true);
+    dv.setInt16(24, clamp16(-sample.vspeed*100), true);
+    dv.setUint16(26, sample.yaw>=0 ? Math.round(sample.yaw*5729.58)%36000 : Math.round((sample.yaw+2*Math.PI)*5729.58)%36000, true); // hdg, centidegrees
+    return new Uint8Array(buf);
+  }
+
+  function mavEncodeStatustext(text, severity){
+    const buf = new Uint8Array(51);
+    buf[0] = severity;
+    // encode first, THEN truncate to 50 bytes — slicing the JS string by
+    // character count first can still overflow, since UTF-8 multi-byte
+    // characters (e.g. the em dashes used throughout the mission log) can
+    // take more than one byte each
+    let bytes = new TextEncoder().encode(String(text));
+    if(bytes.length > 50) bytes = bytes.slice(0, 50);
+    buf.set(bytes, 1);
+    return buf;
+  }
+
+  // Assembles the full .tlog byte stream from state.telemetrySamples +
+  // state.missionLog (the mission events become real STATUSTEXT packets,
+  // interleaved at their actual timestamps) — a real ATTITUDE +
+  // GLOBAL_POSITION_INT pair per sample, plus a HEARTBEAT roughly once a
+  // second, exactly like a real MAVLink stream.
+  // samples/missionLog/baseWallClockMs default to the live flight's own
+  // buffers, but can be passed explicitly to export a past flight loaded
+  // from local history instead (see the per-entry export button below).
+  function buildMavlinkTlog(samples, missionLog, baseWallClockMs){
+    samples = samples || state.telemetrySamples;
+    missionLog = missionLog || state.missionLog;
+    baseWallClockMs = baseWallClockMs || state.flightStartWallClock || Date.now();
+    packMavlinkV2._seq = 0;
+    const parts = [];
+    const baseUnixUs = baseWallClockMs * 1000;
+    function pushRecord(tSeconds, packetBytes){
+      const us = Math.round(baseUnixUs + tSeconds*1e6);
+      const tsBuf = new ArrayBuffer(8);
+      const dv = new DataView(tsBuf);
+      dv.setUint32(0, Math.floor(us/4294967296), false);
+      dv.setUint32(4, us>>>0, false);
+      parts.push(new Uint8Array(tsBuf));
+      parts.push(packetBytes);
+    }
+    const events = missionLog.slice();
+    let ei = 0;
+    let lastHeartbeatT = -999;
+    let prevSample = null;
+    for(const sample of samples){
+      while(ei < events.length && events[ei].t <= sample.t){
+        pushRecord(events[ei].t, packMavlinkV2('STATUSTEXT', mavEncodeStatustext(events[ei].text.replace(/<[^>]*>/g,''), 6)));
+        ei++;
+      }
+      if(sample.t - lastHeartbeatT >= 1.0){
+        pushRecord(sample.t, packMavlinkV2('HEARTBEAT', mavEncodeHeartbeat(sample)));
+        lastHeartbeatT = sample.t;
+      }
+      pushRecord(sample.t, packMavlinkV2('ATTITUDE', mavEncodeAttitude(sample)));
+      pushRecord(sample.t, packMavlinkV2('GLOBAL_POSITION_INT', mavEncodeGlobalPositionInt(sample, prevSample)));
+      prevSample = sample;
+    }
+    while(ei < events.length){
+      pushRecord(events[ei].t, packMavlinkV2('STATUSTEXT', mavEncodeStatustext(events[ei].text.replace(/<[^>]*>/g,''), 6)));
+      ei++;
+    }
+    return new Blob(parts, { type: 'application/octet-stream' });
+  }
+
+  function triggerBlobDownload(blob, filename){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }
+
+  function downloadMavlinkTlog(){
+    if(!state.telemetrySamples.length){
+      log('<span class="warn">[WARN]</span> <span class="node">/mavros</span> no recorded telemetry for this flight yet — nothing to export');
+      return;
+    }
+    const blob = buildMavlinkTlog();
+    const incId = el.crIncidentId ? el.crIncidentId.textContent.replace(/[^\w-]/g,'') : String(Date.now());
+    triggerBlobDownload(blob, `${incId}_flight.tlog`);
+    log(`<span class="ok">[INFO]</span> <span class="node">/mavros</span> exported ${state.telemetrySamples.length} samples as genuine MAVLink v2 .tlog`);
+  }
+
+  // Exports a past flight loaded from local history as a .tlog — same
+  // encoder, fed from that flight's saved (downsampled) samples instead of
+  // the live buffer.
+  function downloadMavlinkTlogForRecord(rec){
+    if(!rec || !rec.samples.length) return;
+    const blob = buildMavlinkTlog(rec.samples, rec.missionLog, rec.ts);
+    triggerBlobDownload(blob, `${rec.id}_flight.tlog`);
+  }
+
+  /* ============================================================
+     LOCAL FLIGHT HISTORY + REPLAY
+     Every completed flight (armed → landed, whatever happened in between)
+     is saved to localStorage — real recorded telemetry samples, not a
+     re-simulation — so it survives a page reload and can be scrubbed back
+     through later. Persists only in this browser; nothing leaves the
+     device.
+  ============================================================ */
+  const HISTORY_KEY = 'droneSimFlightHistory_v1';
+  const HISTORY_MAX = 15;
+  const HISTORY_SAMPLE_CAP = 240; // keep localStorage entries small
+
+  function downsampleSamples(samples, cap){
+    if(samples.length <= cap) return samples.slice();
+    const out = [];
+    const step = (samples.length-1) / (cap-1);
+    for(let i=0;i<cap;i++) out.push(samples[Math.round(i*step)]);
+    return out;
+  }
+
+  function loadFlightHistory(){
+    try{
+      return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    }catch(e){ return []; }
+  }
+
+  function saveFlightHistory(){
+    if(!state.telemetrySamples.length) return;
+    try{
+      const failureLine = state.missionLog.find(e => e.text.includes('Mechanical failure triggered'));
+      const crashed = state.missionLog.some(e => e.text.includes('Impact detected'));
+      const relaunched = state.missionLog.some(e => e.text.includes('Autonomous relaunch authorized'));
+      const record = {
+        id: 'FL-' + Date.now(),
+        ts: Date.now(),
+        durationSec: state.telemetrySamples[state.telemetrySamples.length-1].t,
+        peakAlt: state.telemetrySamples.reduce((m,s)=>Math.max(m,s.alt), 0),
+        crashed: crashed,
+        relaunched: relaunched,
+        cause: failureLine ? failureLine.text.replace(/^Mechanical failure triggered — /, '') : null,
+        missionLog: state.missionLog.slice(),
+        samples: downsampleSamples(state.telemetrySamples, HISTORY_SAMPLE_CAP),
+      };
+      const list = loadFlightHistory();
+      list.unshift(record);
+      while(list.length > HISTORY_MAX) list.pop();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    }catch(e){
+      // localStorage full/unavailable (private browsing, quota) — flight
+      // history is a convenience feature, so fail silently rather than
+      // interrupting the flight
+    }
+  }
+
+  function fmtHistoryClock(ts){
+    const d = new Date(ts);
+    return d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function renderHistoryList(){
+    const list = loadFlightHistory();
+    el.historyCount.textContent = `${list.length} saved`;
+    if(!list.length){
+      el.historyList.innerHTML = '<div class="hist-empty">No flights recorded yet on this device — fly and land once to start building history.</div>';
+      return;
+    }
+    el.historyList.innerHTML = list.map(rec => `
+      <div class="hist-item" data-id="${rec.id}">
+        <div class="hist-meta">
+          <div class="hist-title ${rec.crashed?'crashed':''}">${rec.crashed ? (rec.relaunched ? 'CRASHED · SELF-RECOVERED' : 'CRASHED') : 'NORMAL FLIGHT'}${rec.cause ? ' — '+rec.cause : ''}</div>
+          <div class="hist-sub">${fmtHistoryClock(rec.ts)} · ${rec.durationSec.toFixed(1)}s · peak ${rec.peakAlt.toFixed(1)}m</div>
+        </div>
+        <div class="hist-actions">
+          <button class="hist-replay">▶ REPLAY</button>
+          <button class="hist-tlog">⬇ .TLOG</button>
+          <button class="hist-delete danger">DELETE</button>
+        </div>
+      </div>
+    `).join('');
+    el.historyList.querySelectorAll('.hist-replay').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('.hist-item').dataset.id;
+        const rec = loadFlightHistory().find(r=>r.id===id);
+        if(rec) startReplay(rec);
+      });
+    });
+    el.historyList.querySelectorAll('.hist-tlog').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('.hist-item').dataset.id;
+        const rec = loadFlightHistory().find(r=>r.id===id);
+        if(rec) downloadMavlinkTlogForRecord(rec);
+      });
+    });
+    el.historyList.querySelectorAll('.hist-delete').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        const id = e.target.closest('.hist-item').dataset.id;
+        const list2 = loadFlightHistory().filter(r=>r.id!==id);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(list2));
+        renderHistoryList();
+      });
+    });
+  }
+
+  el.btnHistory.addEventListener('click', ()=>{
+    renderHistoryList();
+    el.historyOverlay.classList.add('show');
+  });
+  el.btnHistoryClose.addEventListener('click', ()=> el.historyOverlay.classList.remove('show'));
+  el.btnHistoryClearAll.addEventListener('click', ()=>{
+    if(!confirm('Clear all saved flight history on this device? This cannot be undone.')) return;
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistoryList();
+  });
+
+  // Drives the same render()/updateHud() as a live flight, but from a
+  // recorded sample instead of physics — see applyReplaySample() and its
+  // call in loop().
+  function startReplay(rec){
+    el.historyOverlay.classList.remove('show');
+    state.replay.active = true;
+    state.replay.flight = rec;
+    state.replay.index = 0;
+    state.replay.playing = true;
+    el.replayScrub.max = String(Math.max(0, rec.samples.length-1));
+    el.replayScrub.value = '0';
+    el.btnReplayPlay.textContent = '⏸ PAUSE';
+    el.replayBar.classList.add('show');
+    // disable live flight controls while replaying a recorded flight
+    [el.btnArm, el.btnTakeoff, el.btnLand, el.btnFault, el.failureSelect].forEach(b=>b.disabled = true);
+    log(`<span class="dim">— entering replay of ${fmtHistoryClock(rec.ts)} (${rec.samples.length} samples) —</span>`);
+  }
+
+  function exitReplay(){
+    state.replay.active = false;
+    state.replay.flight = null;
+    el.replayBar.classList.remove('show');
+    resetSimulation();
+    log('<span class="dim">— replay ended, standing by for operator command —</span>');
+  }
+
+  function applyReplaySample(){
+    const rec = state.replay.flight;
+    if(!rec) return;
+    const idx = Math.max(0, Math.min(Math.floor(state.replay.index), rec.samples.length-1));
+    const s = rec.samples[idx];
+    if(!s) return;
+    state.t = s.t;
+    state.altitude = s.alt;
+    state.vspeed = s.vspeed;
+    state.tilt = s.tilt;
+    state.attitudeRoll = s.rollDeg;
+    state.attitudePitch = s.pitchDeg;
+    state.cageSpin = s.cageSpin;
+    state.motorRpm = s.motorRpm;
+    state.throttle = s.throttle;
+    state.armed = s.armed;
+    setPhase(s.phase);
+    el.hudArmed.textContent = s.armed ? 'TRUE' : 'FALSE';
+    el.hudArmed.classList.toggle('armed', s.armed);
+    el.replayScrub.value = String(idx);
+    updateHud();
+    // updateHud() stamps the topbar clock from live wall-clock time — in
+    // replay we want it (and the dedicated replay-bar readout) to show the
+    // recorded flight's own timestamp instead, so set these after.
+    el.replayClock.textContent = s.clock || 'T+00:00:00.0';
+    el.clock.textContent = s.clock || el.clock.textContent;
+    render();
+  }
+
+  el.replayScrub.addEventListener('input', ()=>{
+    if(!state.replay.active) return;
+    state.replay.playing = false;
+    el.btnReplayPlay.textContent = '▶ PLAY';
+    state.replay.index = parseInt(el.replayScrub.value, 10) || 0;
+    applyReplaySample();
+  });
+  el.btnReplayPlay.addEventListener('click', ()=>{
+    if(!state.replay.active) return;
+    state.replay.playing = !state.replay.playing;
+    el.btnReplayPlay.textContent = state.replay.playing ? '⏸ PAUSE' : '▶ PLAY';
+  });
+  el.btnReplayExit.addEventListener('click', exitReplay);
+
   function downloadCrashReportPNG(){
     const rows = Array.from(document.querySelectorAll('#crash-card .body > .row')).map(r=>({
       k: r.querySelector('.k').textContent,
@@ -1953,6 +2491,8 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     state.reportPending = false;
     state.reportAvailable = false;
     state.missionLog = [];
+    state.telemetrySamples = [];
+    state.lastTelemetrySampleT = -999;
     state.cageSpin = 0.55;
 
     state.phase = 'idle';
@@ -1992,6 +2532,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
   el.btnReset.addEventListener('click', resetSimulation);
   el.btnCrashAck.addEventListener('click', ()=> el.crashOverlay.classList.remove('show'));
   el.btnDownloadReport.addEventListener('click', downloadCrashReportPNG);
+  el.btnDownloadTlog.addEventListener('click', downloadMavlinkTlog);
   el.btnViewReport.addEventListener('click', ()=> el.crashOverlay.classList.add('show'));
 
   el.btnKiosk.addEventListener('click', ()=>{
@@ -2412,6 +2953,23 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
   function loop(now){
     const dt = Math.min(0.05, (now-lastT)/1000);
     lastT = now;
+
+    if(state.replay.active){
+      if(state.replay.playing){
+        // real recorded samples are ~10Hz (0.1s apart); advance at that
+        // pace scaled by wall-clock dt so scrubbing feels like real time
+        state.replay.index += dt * 10 * state.replay.speed;
+        if(state.replay.index >= state.replay.flight.samples.length-1){
+          state.replay.index = state.replay.flight.samples.length-1;
+          state.replay.playing = false;
+          el.btnReplayPlay.textContent = '▶ PLAY';
+        }
+      }
+      applyReplaySample();
+      requestAnimationFrame(loop);
+      return;
+    }
+
     state.t += dt;
 
     // random chance of an in-flight mechanical failure (can also be forced
@@ -2432,6 +2990,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     applyAeroDrag();
     world.step(1/120, dt, 10);
     syncStateFromBody();
+    sampleTelemetry();
 
     if(state.phase === 'ascending'){
       if(Math.abs(state.targetAlt - state.altitude) < 0.15 && Math.abs(state.vspeed) < 0.3){
@@ -2448,6 +3007,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
         logMission('Touchdown confirmed — motors idle');
         el.btnTakeoff.disabled = false;
         el.btnArm.disabled = false;
+        saveFlightHistory();
 
         if(state.reportPending){
           state.reportPending = false;
