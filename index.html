@@ -5,33 +5,257 @@
 <title>DRONE CRASH SIMULATOR — V1.0</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#080b10;
-    --panel:#0c121b;
-    --panel-2:#0f1722;
-    --line:#1c2836;
-    --cyan:#4fd8ff;
-    --cyan-dim:#1e5a70;
-    --green:#3dffa0;
+    --bg:#0d0a08;
+    --panel:#171310;
+    --panel-2:#1d1712;
+    --line:#332821;
+    --cyan:#e8905c;
+    --cyan-dim:#5a3420;
+    --green:#8fe0a8;
     --green-dim:#0f4a34;
     --amber:#ffb020;
-    --red:#ff5d5d;
-    --text:#cfe3f0;
-    --text-dim:#5f7c90;
-    --sky-top:#050810;
-    --sky-bot:#0f2436;
+    --red:#ff6b5d;
+    --text:#ede6dc;
+    --text-dim:#8a7d6f;
+    --sky-top:#0a0806;
+    --sky-bot:#2e1c12;
+
+    /* ---- home screen: standard Claude-style palette ---- */
+    --claude-bg:#F5F4ED;
+    --claude-bg-soft:#FAF9F5;
+    --claude-card:#FFFFFF;
+    --claude-border:#E7E4D9;
+    --claude-text:#2E2B26;
+    --claude-text-dim:#6B6558;
+    --claude-accent:#D97757;
+    --claude-accent-dark:#BF6446;
   }
   *{box-sizing:border-box;}
   html,body{
     margin:0;height:100%;
-    background:var(--bg);
+    background:var(--claude-bg);
     color:var(--text);
     font-family:'Rajdhani',sans-serif;
     overflow:hidden;
   }
   ::selection{background:var(--cyan-dim);}
+
+  /* ================================================================
+     HOME SCREEN — standard Claude look: warm cream bg, coral accent,
+     serif display type. This is the app's landing/entry screen.
+  ================================================================ */
+  #home-screen{
+    position:fixed; inset:0; z-index:100;
+    background:var(--claude-bg);
+    color:var(--claude-text);
+    font-family:'Inter',sans-serif;
+    overflow-y:auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:48px 24px;
+  }
+  #home-screen.hidden{display:none;}
+  .home-wrap{
+    width:100%;
+    max-width:760px;
+  }
+  .home-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 14px;
+    border:1px solid var(--claude-border);
+    background:var(--claude-card);
+    border-radius:999px;
+    font-size:12px;
+    letter-spacing:1px;
+    color:var(--claude-text-dim);
+    font-weight:600;
+  }
+  .home-badge .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--claude-accent);
+  }
+  .home-wrap h1{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:clamp(34px,5.5vw,54px);
+    line-height:1.08;
+    letter-spacing:-0.5px;
+    margin:22px 0 14px;
+    color:var(--claude-text);
+  }
+  .home-wrap h1 em{
+    font-style:italic;
+    color:var(--claude-accent);
+  }
+  .home-sub{
+    font-size:17px;
+    line-height:1.6;
+    color:var(--claude-text-dim);
+    max-width:560px;
+    margin:0 0 36px;
+  }
+  .home-features{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:14px;
+    margin-bottom:40px;
+  }
+  @media (max-width:560px){ .home-features{grid-template-columns:1fr;} }
+  .home-feature{
+    background:var(--claude-card);
+    border:1px solid var(--claude-border);
+    border-radius:14px;
+    padding:18px 18px 16px;
+  }
+  .home-feature .ico{font-size:20px;margin-bottom:8px;display:block;}
+  .home-feature h3{
+    margin:0 0 5px;
+    font-size:14.5px;
+    font-weight:700;
+    color:var(--claude-text);
+    letter-spacing:0.1px;
+  }
+  .home-feature p{
+    margin:0;
+    font-size:13px;
+    line-height:1.55;
+    color:var(--claude-text-dim);
+  }
+  .home-cta-row{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+  }
+  #btnLaunch{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:15.5px;
+    letter-spacing:0.2px;
+    color:#fff;
+    background:var(--claude-accent);
+    border:none;
+    padding:14px 28px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:background .15s ease, transform .15s ease;
+    box-shadow:0 1px 2px rgba(46,43,38,0.06);
+  }
+  #btnLaunch:hover{background:var(--claude-accent-dark);}
+  #btnLaunch:active{transform:translateY(1px);}
+  .home-cta-note{
+    font-size:12.5px;
+    color:var(--claude-text-dim);
+  }
+  .home-footer{
+    margin-top:46px;
+    padding-top:20px;
+    border-top:1px solid var(--claude-border);
+    font-size:12px;
+    color:var(--claude-text-dim);
+    line-height:1.6;
+  }
+  .home-footer strong{color:var(--claude-text);font-weight:600;}
+
+  .home-link-btn{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13.5px;
+    color:var(--claude-accent-dark);
+    background:transparent;
+    border:none;
+    padding:0;
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  .home-link-btn:hover{color:var(--claude-accent);}
+
+  /* ---------- Methodology modal ---------- */
+  #methodology-overlay{
+    position:fixed;inset:0;z-index:150;
+    background:rgba(46,43,38,.45);
+    display:none;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  #methodology-overlay.show{display:flex;}
+  #methodology-card{
+    width:min(720px,96vw);max-height:88vh;overflow-y:auto;
+    background:var(--claude-card);
+    border:1px solid var(--claude-border);
+    border-radius:14px;
+    font-family:'Inter',sans-serif;
+    color:var(--claude-text);
+    box-shadow:0 20px 60px rgba(46,43,38,.25);
+  }
+  #methodology-card header{
+    position:sticky;top:0;
+    padding:18px 22px;
+    background:var(--claude-card);
+    border-bottom:1px solid var(--claude-border);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  #methodology-card header h2{
+    margin:0;font-family:'Fraunces',serif;font-weight:500;font-size:22px;color:var(--claude-text);
+  }
+  .meth-close{
+    background:transparent;border:none;cursor:pointer;
+    font-size:16px;color:var(--claude-text-dim);
+    width:30px;height:30px;border-radius:50%;
+  }
+  .meth-close:hover{background:var(--claude-bg);color:var(--claude-text);}
+  .meth-body{padding:6px 22px 26px;}
+  .meth-intro{font-size:14px;line-height:1.6;color:var(--claude-text-dim);margin:10px 0 22px;}
+  .meth-body h3{
+    font-family:'Fraunces',serif;font-weight:500;font-size:16.5px;
+    color:var(--claude-text);margin:26px 0 10px;
+  }
+  .meth-body h3:first-of-type{margin-top:10px;}
+  .meth-table{
+    width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;
+  }
+  .meth-table td, .meth-table th{
+    text-align:left;padding:7px 10px;
+    border-bottom:1px solid var(--claude-border);
+    vertical-align:top;
+  }
+  .meth-table th{color:var(--claude-text-dim);font-weight:600;width:34%;}
+  .meth-table tr:last-child td{border-bottom:none;}
+  .meth-formula{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;line-height:1.85;
+    background:var(--claude-bg-soft);
+    border:1px solid var(--claude-border);
+    border-radius:8px;
+    padding:12px 16px;
+    color:var(--claude-text);
+    margin-bottom:8px;
+  }
+  .meth-note{font-size:13px;line-height:1.6;color:var(--claude-text-dim);margin:0 0 4px;}
+  .meth-note code{
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+    background:var(--claude-bg-soft);padding:1px 5px;border-radius:3px;
+  }
+
+  /* ---------- App shell (the simulator itself) ---------- */
+  #app-screen{
+    position:fixed; inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+  }
+  #app-screen.active{display:flex;}
+  .btn.home-btn{
+    padding:7px 14px;font-size:11px;letter-spacing:1.5px;
+    border-color:var(--line);color:var(--text-dim);
+  }
+  .btn.home-btn:hover{border-color:var(--cyan);color:var(--cyan);}
 
   /* ---------- Top bar ---------- */
   #topbar{
@@ -40,7 +264,7 @@
     align-items:center;
     justify-content:space-between;
     padding:0 18px;
-    background:linear-gradient(180deg,#0c121b,#0a0f16);
+    background:linear-gradient(180deg,#17120e,#0d0a08);
     border-bottom:1px solid var(--line);
   }
   #topbar .brand{
@@ -72,7 +296,8 @@
   /* ---------- Main layout ---------- */
   #main{
     display:flex;
-    height:calc(100% - 54px - 84px);
+    flex:1;
+    min-height:0;
   }
   #viewport-wrap{
     flex:1.55;
@@ -88,7 +313,7 @@
     pointer-events:none;
     font-family:'JetBrains Mono',monospace;
     color:var(--cyan);
-    text-shadow:0 0 6px rgba(79,216,255,.35);
+    text-shadow:0 0 6px rgba(232,144,92,.35);
   }
   #hud-top-left{top:14px;left:16px;font-size:12px;line-height:1.65;}
   #hud-bottom-left{bottom:14px;left:16px;font-size:12px;line-height:1.65;}
@@ -130,7 +355,25 @@
   #phase-banner.fail{color:var(--red);border-color:#5a1414;animation:blinkFail .9s infinite;}
   @keyframes blinkFail{0%,100%{opacity:1;}50%{opacity:.4;}}
 
-  /* ---------- ROS console ---------- */
+  /* ---------- Flight telemetry log panel ---------- */
+  .console-title{
+    padding:9px 14px 7px;
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    font-size:12.5px;
+    letter-spacing:2px;
+    color:var(--text-dim);
+    border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .console-title span.live-dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 5px var(--green);
+    display:inline-block;margin-right:6px;
+    animation:pulse 2s infinite ease-in-out;
+  }
   #console-wrap{
     flex:1;
     display:flex;
@@ -204,7 +447,7 @@
     align-items:center;
     gap:26px;
     padding:0 22px;
-    background:linear-gradient(0deg,#0c121b,#0a0f16);
+    background:linear-gradient(0deg,#17120e,#0d0a08);
     border-top:1px solid var(--line);
   }
   .btn{
@@ -311,14 +554,141 @@
 </head>
 <body>
 
+<div id="home-screen">
+  <div class="home-wrap">
+    <div class="home-badge"><span class="dot"></span>PHYSICS-DRIVEN SIMULATOR · V1.0</div>
+    <h1>Fly it.<br>Break it. <em>On purpose.</em></h1>
+    <p class="home-sub">
+      A quadcopter takeoff and crash simulator built on a real rigid-body physics
+      engine — not a scripted animation. Arm, take off, hold a PID-stabilized
+      hover, then trigger one of fifteen distinct mechanical failures and watch
+      the airframe genuinely tumble and fall, backed by a live flight telemetry
+      log panel and a full post-crash incident report.
+    </p>
+
+    <div class="home-features">
+      <div class="home-feature">
+        <span class="ico">🧠</span>
+        <h3>Real physics engine</h3>
+        <p>cannon.js rigid-body dynamics — thrust, torque, and gravity are simulated, not animated.</p>
+      </div>
+      <div class="home-feature">
+        <span class="ico">🛰️</span>
+        <h3>Live telemetry log panel</h3>
+        <p>A styled flight-controller log feed — node status, topics, and live diagnostics.</p>
+      </div>
+      <div class="home-feature">
+        <span class="ico">💥</span>
+        <h3>15 failure modes</h3>
+        <p>ESC desync, battery collapse, wind gusts, sensor faults, and more — pick one or go random.</p>
+      </div>
+      <div class="home-feature">
+        <span class="ico">📋</span>
+        <h3>Incident reports</h3>
+        <p>Impact velocity, G-force, and attitude at impact, computed from the real simulation.</p>
+      </div>
+    </div>
+
+    <div class="home-cta-row">
+      <button id="btnLaunch">Launch Simulator →</button>
+      <span class="home-cta-note">Runs entirely in your browser · no data leaves your device</span>
+    </div>
+
+    <div class="home-cta-row" style="margin-top:14px;">
+      <button id="btnMethodology" class="home-link-btn">📐 How the physics &amp; math work →</button>
+    </div>
+
+    <div class="home-footer">
+      Built with a cannon.js rigid-body simulation, HTML5 Canvas rendering, and vanilla JavaScript — no backend, no real flight-controller link.
+      <br><br>
+      <strong>Developed and Managed by — Omm Sanjog</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     METHODOLOGY MODAL — "how it works": parameters, formulas,
+     and an honest real-vs-simulated breakdown, all in one place.
+============================================================ -->
+<div id="methodology-overlay">
+  <div id="methodology-card">
+    <header>
+      <h2>How This Simulation Works</h2>
+      <button id="btnMethClose" class="meth-close">✕</button>
+    </header>
+    <div class="meth-body">
+
+      <p class="meth-intro">Everything below is exactly what the simulator computes — no numbers are hidden or hand-picked after the fact. Where something is an estimate or purely cosmetic, it's labeled as such.</p>
+
+      <h3>1. Airframe constants</h3>
+      <table class="meth-table">
+        <tr><td>Mass</td><td>1.2 kg</td></tr>
+        <tr><td>Gravity</td><td>9.81 m/s²</td></tr>
+        <tr><td>Motor arm offset (from center of mass)</td><td>0.16 m</td></tr>
+        <tr><td>Max thrust per motor</td><td>5.4 N</td></tr>
+        <tr><td>Yaw reaction-torque constant</td><td>0.02 · thrust</td></tr>
+        <tr><td>Protective cage radius (= collision hull)</td><td>0.35 m</td></tr>
+        <tr><td>Assumed impact stopping time</td><td>0.05 s</td></tr>
+      </table>
+      <p class="meth-note">These are the only free parameters chosen by hand. Everything else — hover throttle, torque, trajectories — is derived from them by the physics engine, not scripted.</p>
+
+      <h3>2. Hover throttle (derived, not guessed)</h3>
+      <div class="meth-formula">HOVER_THROTTLE = (mass × gravity) / (4 × max_thrust_per_motor)<br>= (1.2 × 9.81) / (4 × 5.4) ≈ 0.545</div>
+      <p class="meth-note">This is the exact commanded throttle at which total thrust equals total weight — the PID loop then trims around this baseline instead of discovering it from scratch.</p>
+
+      <h3>3. Control loop (PID gains)</h3>
+      <table class="meth-table">
+        <tr><th>Loop</th><th>P</th><th>I</th><th>D</th><th>Target</th></tr>
+        <tr><td>Altitude</td><td>0.65</td><td>0.08</td><td>0.85</td><td>commanded altitude</td></tr>
+        <tr><td>Roll / Pitch</td><td>0.6</td><td>—</td><td>0.15</td><td>0° (level)</td></tr>
+        <tr><td>Yaw</td><td>—</td><td>—</td><td>0.02</td><td>angular-rate damping only</td></tr>
+      </table>
+
+      <h3>4. Motor mixer</h3>
+      <div class="meth-formula">FL = throttle − roll + pitch + yaw<br>FR = throttle + roll + pitch − yaw<br>RL = throttle − roll − pitch − yaw<br>RR = throttle + roll − pitch + yaw</div>
+      <p class="meth-note">Each motor's output is converted into a real upward force applied at its physical arm position via <code>applyLocalForce</code>. Because the force acts away from the center of mass, the physics engine's own solver computes the resulting roll/pitch torque as τ = r × F — this is not hand-animated. Yaw comes separately, from alternating CW/CCW motor spin-reaction torque proportional to each motor's thrust.</p>
+
+      <h3>5. Impact G-force estimate</h3>
+      <div class="meth-formula">G-force ≈ Δv / (g × stopping_time)<br>stopping_time assumed = 0.05 s</div>
+      <p class="meth-note">Impact velocity (Δv) is real — read directly from the physics engine's collision event. The G-force conversion is a standard simplified impact-mechanics approximation, not a measured quantity, since there's no crumple/deformation model. This is the one number in the incident report that's explicitly an estimate.</p>
+
+      <h3>6. Failure modes — what actually breaks</h3>
+      <table class="meth-table">
+        <tr><th>Category</th><th>Mechanism</th></tr>
+        <tr><td>Motor / ESC / structural</td><td>A motor's commanded thrust is zeroed, randomized, or scaled directly in the mixer output</td></tr>
+        <tr><td>Power (battery / thermal)</td><td>All four motors' thrust decays exponentially over time</td></tr>
+        <tr><td>Sensors / software</td><td>Corrupted values are fed into the controller's own feedback loop, so the resulting instability is emergent, not scripted</td></tr>
+        <tr><td>Link / firmware</td><td>The control loop is frozen open-loop; a small unmodeled airframe-asymmetry torque then causes a gradual, uncorrected tumble</td></tr>
+        <tr><td>Environment (wind)</td><td>A real external force + torque is applied directly to the rigid body</td></tr>
+        <tr><td>Human factor</td><td>Throttle command is manually forced down</td></tr>
+      </table>
+
+      <h3>7. What's real vs. simulated for flavor</h3>
+      <table class="meth-table">
+        <tr><th>Physically simulated</th><td>Mass, gravity, thrust, motor-position torque, spin-reaction yaw torque, PID response, collision detection, impact velocity, attitude at impact</td></tr>
+        <tr><th>Estimated (stated formula)</th><td>Impact G-force</td></tr>
+        <tr><th>Cosmetic / narrative only</th><td>Battery %, temperature, wind speed, RF link quality, GPS satellite count, log timestamps, firmware version strings</td></tr>
+        <tr><th>Not present at all</th><td>A real flight-controller install, real network traffic, a real drone</td></tr>
+      </table>
+
+      <h3>8. The telemetry log panel</h3>
+      <p class="meth-note">The log panel is styled after real flight-controller/ground-control conventions (topic and node names you'd recognize from an actual system) for authenticity, but it runs entirely client-side in JavaScript — there's no real controller process, no network socket, and no external connection behind it. Where a logged value maps to something the simulation actually tracks (altitude, vertical speed), it's the real number; everything else is generated narrative flavor.</p>
+
+    </div>
+  </div>
+</div>
+
+<div id="app-screen">
+
 <div id="topbar">
   <div class="brand">
     <div class="dot"></div>
     <h1>DRONE CRASH <span>SIMULATOR</span></h1>
-    <div class="sub">V1.0 &nbsp;·&nbsp; CANNON.JS RIGID-BODY PHYSICS &nbsp;·&nbsp; SIMULATED ROS 1 GROUND CONTROL</div>
+    <div class="sub">V1.0 &nbsp;·&nbsp; CANNON.JS RIGID-BODY PHYSICS &nbsp;·&nbsp; SIMULATED FLIGHT TELEMETRY LOG</div>
   </div>
   <div class="right">
     <div id="clock">T+00:00:00.0</div>
+    <button class="btn home-btn" id="btnHome">← HOME</button>
     <button class="btn kiosk-btn" id="btnKiosk">⛶ KIOSK</button>
   </div>
 </div>
@@ -341,6 +711,7 @@
   </div>
 
   <div id="console-wrap">
+    <div class="console-title"><span><span class="live-dot"></span>FLIGHT TELEMETRY LOG PANEL</span></div>
     <div id="console-tabs">
       <div class="tab active">/rosout</div>
       <div class="tab">rostopic echo</div>
@@ -421,7 +792,10 @@
   </div>
 </div>
 
-<footer id="credit">local simulation · cannon.js physics · no network calls</footer>
+<footer id="credit">local simulation · cannon.js physics · no network calls · developed &amp; managed by Omm Sanjog</footer>
+
+</div>
+<!-- /#app-screen -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 <script>
@@ -1085,9 +1459,9 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
 
   function drawSky(){
     const grad = ctx.createLinearGradient(0,0,0,H);
-    grad.addColorStop(0, '#050810');
-    grad.addColorStop(0.55, '#0a1a2a');
-    grad.addColorStop(1, '#123249');
+    grad.addColorStop(0, '#0a0806');
+    grad.addColorStop(0.55, '#241408');
+    grad.addColorStop(1, '#3a2010');
     ctx.fillStyle = grad;
     ctx.fillRect(0,0,W,H);
 
@@ -1105,8 +1479,8 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
 
   function drawGround(cx, hz, groundY){
     const gGrad = ctx.createLinearGradient(0,hz,0,H);
-    gGrad.addColorStop(0, '#0d2233');
-    gGrad.addColorStop(1, '#04101a');
+    gGrad.addColorStop(0, '#231609');
+    gGrad.addColorStop(1, '#0f0904');
     ctx.fillStyle = gGrad;
     ctx.fillRect(0,hz,W,H-hz);
 
@@ -1121,14 +1495,14 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       const depthFrac = Math.min(1, (z-3)/24);
       const alpha = 0.34*(1-depthFrac) + 0.05;
       const halfW = 9*(y-hz)/LAT;
-      ctx.strokeStyle = `rgba(79,216,255,${alpha.toFixed(3)})`;
+      ctx.strokeStyle = `rgba(232,144,92,${alpha.toFixed(3)})`;
       ctx.lineWidth = z===PAD_Z ? 1.6 : 1;
       ctx.beginPath();
       ctx.moveTo(cx-halfW, y);
       ctx.lineTo(cx+halfW, y);
       ctx.stroke();
       if(z%6===0 && z>PAD_Z){
-        ctx.fillStyle = `rgba(79,216,255,${(alpha+0.25).toFixed(3)})`;
+        ctx.fillStyle = `rgba(232,144,92,${(alpha+0.25).toFixed(3)})`;
         ctx.font = '10px JetBrains Mono, monospace';
         ctx.textAlign = 'left';
         ctx.fillText(`${(z-PAD_Z)*unitMeters}m`, cx+halfW+6, y+3);
@@ -1141,7 +1515,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       const xNear = cx + x*(yNear-hz)/LAT;
       const xFar = cx + x*(yFar-hz)/LAT;
       const depthFrac = Math.abs(x)/9;
-      ctx.strokeStyle = x===0 ? 'rgba(79,216,255,0.5)' : `rgba(79,216,255,${(0.22*(1-depthFrac)+0.05).toFixed(3)})`;
+      ctx.strokeStyle = x===0 ? 'rgba(232,144,92,0.5)' : `rgba(232,144,92,${(0.22*(1-depthFrac)+0.05).toFixed(3)})`;
       ctx.lineWidth = x===0 ? 1.4 : 1;
       ctx.beginPath();
       ctx.moveTo(xNear, yNear);
@@ -1154,15 +1528,15 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     ctx.translate(cx, groundY);
     ctx.scale(1, 0.34);
     const glow = ctx.createRadialGradient(0,0,0,0,0,padHalf*2.2);
-    glow.addColorStop(0, 'rgba(79,216,255,0.10)');
-    glow.addColorStop(1, 'rgba(79,216,255,0)');
+    glow.addColorStop(0, 'rgba(232,144,92,0.10)');
+    glow.addColorStop(1, 'rgba(232,144,92,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(0,0, padHalf*2.2, 0, Math.PI*2);
     ctx.fill();
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(79,216,255,0.4)';
+    ctx.strokeStyle = 'rgba(232,144,92,0.4)';
     ctx.beginPath(); ctx.moveTo(0,hz); ctx.lineTo(W,hz); ctx.stroke();
   }
 
@@ -1170,12 +1544,12 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     ctx.save();
     ctx.translate(cx, groundY);
     ctx.scale(1, 0.34);
-    ctx.strokeStyle = 'rgba(79,216,255,0.55)';
+    ctx.strokeStyle = 'rgba(232,144,92,0.55)';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(0,0, 62, 0, Math.PI*2);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(79,216,255,0.35)';
+    ctx.strokeStyle = 'rgba(232,144,92,0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(0,0,40,0,Math.PI*2); ctx.stroke();
     ctx.restore();
@@ -1211,7 +1585,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       ctx.fillStyle = `rgba(207,227,240,${0.10+blur*0.16})`;
       ctx.ellipse(0,0, r, r*0.42, 0, 0, Math.PI*2);
       ctx.fill();
-      ctx.strokeStyle = `rgba(79,216,255,${0.25+blur*0.35})`;
+      ctx.strokeStyle = `rgba(232,144,92,${0.25+blur*0.35})`;
       ctx.lineWidth = 1;
       for(let k=0;k<3;k++){
         ctx.beginPath();
@@ -1248,7 +1622,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       ctx.fillStyle = armed ? '#16324a' : '#20242c';
       ctx.arc(mx,my,7,0,Math.PI*2);
       ctx.fill();
-      ctx.strokeStyle = '#4fd8ff44';
+      ctx.strokeStyle = '#e8905c44';
       ctx.lineWidth = 1;
       ctx.stroke();
       drawProp(mx, my, 26, angle + (sx*sy>0?0:Math.PI/2), rpm);
@@ -1275,7 +1649,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     ctx.fillStyle = bodyGrad;
     roundRect(ctx, -20,-16, 40, 30, 7);
     ctx.fill();
-    ctx.strokeStyle = '#4fd8ff88';
+    ctx.strokeStyle = '#e8905c88';
     ctx.lineWidth = 1.2;
     roundRect(ctx, -20,-16, 40, 30, 7);
     ctx.stroke();
@@ -1477,8 +1851,48 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     requestAnimationFrame(loop);
   }
 
-  bootSequence();
-  requestAnimationFrame(loop);
+  /* ============================================================
+     HOME <-> APP navigation
+  ============================================================ */
+  const homeScreen = document.getElementById('home-screen');
+  const appScreen = document.getElementById('app-screen');
+  const btnLaunch = document.getElementById('btnLaunch');
+  const btnHome = document.getElementById('btnHome');
+  let started = false;
+
+  function launchSim(){
+    homeScreen.classList.add('hidden');
+    appScreen.classList.add('active');
+    resize(); // canvas has real dimensions only once its container is visible
+    if(!started){
+      started = true;
+      bootSequence();
+      requestAnimationFrame(loop);
+    }
+  }
+
+  btnLaunch.addEventListener('click', launchSim);
+  btnHome.addEventListener('click', ()=>{
+    appScreen.classList.remove('active');
+    homeScreen.classList.remove('hidden');
+  });
+
+  /* ============================================================
+     METHODOLOGY MODAL — parameters & math, on demand
+  ============================================================ */
+  const methOverlay = document.getElementById('methodology-overlay');
+  const btnMethodology = document.getElementById('btnMethodology');
+  const btnMethClose = document.getElementById('btnMethClose');
+  if(btnMethodology && methOverlay){
+    btnMethodology.addEventListener('click', ()=> methOverlay.classList.add('show'));
+    btnMethClose.addEventListener('click', ()=> methOverlay.classList.remove('show'));
+    methOverlay.addEventListener('click', (e)=>{
+      if(e.target === methOverlay) methOverlay.classList.remove('show');
+    });
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape') methOverlay.classList.remove('show');
+    });
+  }
 
 })();
 </script>
