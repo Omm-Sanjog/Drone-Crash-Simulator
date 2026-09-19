@@ -756,8 +756,10 @@
 
       <h3>9. Autonomous post-crash recovery</h3>
       <p class="meth-note">After a crash, the airframe doesn't just sit there — it self-rights and relaunches on its own, exactly like the rest of the simulation: with real applied torque, not a scripted flip animation. The report from the crash is captured immediately but held back; it only becomes available (📋 LAST REPORT, top bar) once this recovered flight lands safely.</p>
-      <div class="meth-formula">up_world = quaternion × (0,1,0)<br>angle_err = acos(up_world.y) &nbsp;&nbsp;(0 when upright)<br>axis = up_world × (0,1,0)<br>correction_torque = axis × K_p − angular_velocity × K_d<br>K_p = 2.4 N·m/rad &nbsp; K_d = 1.6 N·m/(rad/s)</div>
-      <p class="meth-note">The gains are deliberately damping-heavy (K_d well above K_p relative to the airframe's inertia) so the maneuver settles smoothly instead of overshooting and oscillating back and forth. The controller keeps driving this corrective torque every tick until the tilt error stays under 10° and angular velocity stays under 1.2 rad/s for a sustained 0.3s — a 5-second timeout forces a handoff regardless, so an unusually stubborn tumble can never hang the simulation. At that point physics stops driving the rotation and a short, <strong>eased 0.6s glide</strong> (a quaternion slerp with cubic ease-out) smoothly finishes leveling the airframe out and locks it, rather than teleporting instantly — asymptotically settling the last few degrees under real ground-contact friction can jitter indefinitely, so the torque-driven motion (genuinely real physics, from tumble to nearly-upright) hands off to this brief animated finish for a clean result without a visible snap. The cage (rendered from the body's real orientation while tumbling) eases to its locked angle over the same glide, instead of continuing to spin, and stays locked through the ARM → TAKEOFF sequence that follows — which also clears the failure-mode selector back to "random," so a fresh flight never inherits the scenario that caused the last crash. Every stage — angle error, angular velocity, and applied correction torque — streams live to the telemetry log panel (<code>/recovery/attitude</code>) so the reorientation is fully auditable, not a black box.</p>
+      <p class="meth-note">Recovery runs in two stages, framed in the log as a low-confidence attitude estimate forcing a reacquisition sweep before the controller trusts it enough to correct. The cage has no actuator of its own — it's rigidly bonded to the same chassis as the motors — so nothing turns it that the motors aren't actually causing.</p>
+      <div class="meth-formula">Stage 1 — diagnostic motor-driven spin sweep:<br>FL + RR motors spin at full thrust, FR + RL idle<br>yaw_torque = Σ (motor_thrust × TORQUE_CONST × spin_dir) ≈ 0.22 N·m<br>— identical formula to normal in-flight yaw control (section 5)<br>runs until ≥2.5 full revolutions logged, or 5.0s elapses<br><br>Stage 2 — corrective righting (idealized attitude hold):<br>up_world = quaternion × (0,1,0)<br>angle_err = acos(up_world.y) &nbsp;&nbsp;(0 when upright)<br>axis = up_world × (0,1,0)<br>correction_torque = axis × K_p − angular_velocity × K_d<br>K_p = 2.4 N·m/rad &nbsp; K_d = 1.6 N·m/(rad/s)</div>
+      <p class="meth-note">The spin sweep is the same motor mixer and the same spin-reaction-torque formula (thrust × TORQUE_CONST × each motor's spin direction) that drives yaw during normal flight, just with two motors held at full thrust and two idling instead of a small differential — genuine real motor thrust, solved and verified to reproduce this exact torque. Because the airframe's total angular velocity is integrated tick by tick to count real revolutions, and the cage renders the body's actual orientation, what's on screen is the cage twirling because the motors are turning it.</p>
+      <p class="meth-note">Stage 2 is deliberately <em>not</em> solved the same literal way. I tried it: converting the desired torque into a per-motor thrust command through the identical mixer, the same way the spin sweep works. It's mathematically exact when the motors aren't thrust-limited — but real motor thrust only pushes along the body's own local "up" axis, and from a rest orientation close to upside-down that axis points mostly into the ground, so no achievable motor mix can lift the airframe back over. A real crashed quad resting inverted has exactly this problem — propeller thrust alone often can't flip it. So Stage 2 stays an idealized attitude-hold torque (the same kind of simplification the normal in-flight roll/pitch hold already makes with small-angle terms) rather than a literal motor solve that would leave some crashes permanently stuck. The rotors keep visibly spinning through this stage — real motors are what the torque represents — scaled to how hard the correction is working, but shown as one shared RPM across all four rather than the exact differential Stage 1 uses, since this stage doesn't compute an exact per-motor split. Its gains are deliberately damping-heavy (K_d well above K_p relative to the airframe's inertia) so the righting maneuver settles smoothly instead of overshooting and oscillating back and forth. It keeps driving corrective torque every tick until the tilt error stays under 10° and angular velocity stays under 1.2 rad/s for a sustained 0.3s — a 10-second timeout, covering the whole recovery from the start of the spin sweep, forces a handoff regardless, so an unusually stubborn tumble can never hang the simulation. At that point physics stops driving the rotation and a short, <strong>eased 0.6s glide</strong> (a quaternion slerp with cubic ease-out) smoothly finishes leveling the airframe out and locks it, rather than teleporting instantly — asymptotically settling the last few degrees under real ground-contact friction can jitter indefinitely, so the torque-driven motion hands off to this brief animated finish for a clean result without a visible snap. The cage eases to its locked angle over the same glide, instead of continuing to spin, and stays locked through the ARM → TAKEOFF sequence that follows — which also clears the failure-mode selector back to "random," so a fresh flight never inherits the scenario that caused the last crash. Every stage — angle error, angular velocity, and applied torque — streams live to the telemetry log panel (<code>/recovery/attitude</code>) so the reorientation is fully auditable, not a black box.</p>
 
       <h3>10. The incident report's mission timeline</h3>
       <p class="meth-note">Every phase transition for a flight — arm, takeoff, reaching hover, a triggered failure, the crash impact, recovery starting and locking in, the autonomous relaunch, and the final landing — is timestamped and recorded as it happens. The incident report doesn't just show the crash snapshot: it shows the whole story, from takeoff through failure, crash, stabilization, relaunch, and landing, in order. The timeline only clears on a fresh manual ARM from a full reset, so if a second failure happens before landing, both cycles appear in one continuous record.</p>
@@ -971,6 +973,13 @@
     recoveryFollowupTimer: null,
     reportPending: false,
     reportAvailable: false,
+
+    // diagnostic spin sweep — a deliberate, visible pre-correction phase
+    // (real torque, real revolutions) that runs before the corrective
+    // controller commits — see runDiagnosticSpin()
+    recoveryPhase: null,          // 'spin' | 'correct' | null
+    recoverySpinAccumRad: 0,
+    recoverySpinStartTime: 0,
 
     // smooth lock-in glide (torque hands off to a short eased animation
     // instead of teleporting) — see runLockAnimation()
@@ -1281,7 +1290,19 @@
   const RECOVER_DONE_ANGLE = 10 * Math.PI/180; // rad (~10°) — "close enough," then hard-locked level
   const RECOVER_DONE_OMEGA = 1.2;    // rad/s — considered "settled" (ground-contact jitter tolerant)
   const RECOVER_STABLE_TIME = 0.3;   // s the airframe must hold that state before the lock-in
-  const RECOVER_MAX_TIME = 5.0;      // s safety fallback — proceed anyway rather than hang
+  const RECOVER_MAX_TIME = 10.0;     // s safety fallback for the WHOLE recovery (spin sweep + correction) — proceed anyway rather than hang
+
+  // ---- diagnostic spin sweep (runs before the corrective controller) ----
+  // A deliberate, visible pre-correction phase, driven by real motor
+  // thrust (see runDiagnosticSpin) — not a torque applied out of nowhere.
+  // The cage is rigidly bonded to the same body as the motors, so it only
+  // rotates because they do; two motors spin at full authority while the
+  // other two idle, producing ~0.22 N·m of real spin-reaction yaw torque
+  // (thrust × TORQUE_CONST, same formula as normal flight) against the
+  // airframe's real ~0.098 kg·m² yaw inertia — good for a visible, but not
+  // instant, ~2.5-revolution twirl before the PD controller commits.
+  const RECOVER_SPIN_REVS = 2.5;     // target full revolutions before committing to correction
+  const RECOVER_SPIN_DURATION = 5.0; // s safety cap, in case ground friction chews into the spin rate
 
   const world = new CANNON.World();
   world.gravity.set(0, -9.81, 0);
@@ -1497,15 +1518,77 @@
      from the quaternion, not animated), damped by angular velocity,
      until the airframe is level and settled, then hands off to a
      normal auto re-arm + takeoff sequence.
+
+     Before the corrective PD controller engages, runDiagnosticSpin() spins
+     the airframe visibly through a couple of full revolutions first. The
+     cage has no actuator of its own — it's rigidly bonded to the same
+     chassis as the motors, so it can only move because the motors do. This
+     spin is driven by the exact same mechanism as in-flight yaw control
+     (see the motor mixer above, section 5): two diagonal motors (FL/RR)
+     spin up while the other two (FR/RL) idle, and their real, unequal
+     spin-reaction torque — thrust × TORQUE_CONST × spin direction, summed
+     per motor, identical formula to normal flight — twirls the whole
+     rigid body, cage included. It's framed in the log as a gyroscopic
+     reference reacquisition sweep, but the motion is real motor-driven
+     physics, not an animation.
   ============================================================ */
+  function runDiagnosticSpin(dt){
+    if(state.recoveryPhase !== 'spin') return;
+
+    // FL + RR spin (same handedness, MOTOR_SPIN=+1) while FR + RL idle —
+    // the maximum pure-yaw differential this airframe's motors can
+    // produce, using the identical per-motor force + spin-reaction-torque
+    // application as runController()'s normal flight mixer.
+    const spinMix = { FL: 1.0, FR: 0, RL: 0, RR: 1.0 };
+    lastMix = spinMix; // drives the visible rotor RPM (syncStateFromBody) — props actually spin during the sweep
+    let yawTorque = 0, totalThrust = 0;
+    for(const k of MOTOR_KEYS){
+      const thrust = spinMix[k]*MAX_THRUST_PER_MOTOR;
+      totalThrust += thrust;
+      droneBody.applyLocalForce(new CANNON.Vec3(0, thrust, 0), MOTOR_POS[k]);
+      yawTorque += thrust*TORQUE_CONST*MOTOR_SPIN[k];
+    }
+    const worldYaw = droneBody.quaternion.vmult(new CANNON.Vec3(0, yawTorque, 0));
+    droneBody.torque.vadd(worldYaw, droneBody.torque);
+
+    state.lastThrustN = totalThrust;
+    state.recoverySpinAccumRad += droneBody.angularVelocity.length() * dt;
+    const upWorldSpin = droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0));
+    state.recoveryAngleErrDeg = Math.acos(Math.max(-1, Math.min(1, upWorldSpin.y))) * 57.2958;
+    state.recoveryOmega = droneBody.angularVelocity.length();
+    state.recoveryTorqueMag = Math.abs(yawTorque);
+    const revs = state.recoverySpinAccumRad / (2*Math.PI);
+    const elapsed = state.t - state.recoverySpinStartTime;
+
+    if(revs >= RECOVER_SPIN_REVS || elapsed >= RECOVER_SPIN_DURATION){
+      state.recoveryPhase = 'correct';
+      state.recoverStableSince = null; // give the corrective controller a clean settling window
+      logMission(`Diagnostic motor-driven spin sweep complete — ${revs.toFixed(1)} revolutions — committing to attitude correction`);
+      log(`<span class="ok">[INFO]</span> <span class="node">/recovery_manager</span> gyro sweep complete (${revs.toFixed(1)} rev, ${elapsed.toFixed(1)}s) — engaging corrective torque`);
+    }
+  }
+
   function runRecoveryController(dt){
     if(state.recoveryCompleting) return; // already handed off — hold the locked state, apply no more correction
+    if(state.recoveryPhase !== 'correct') return; // still in the diagnostic spin sweep — see runDiagnosticSpin()
     const upWorld = droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0));
     const dot = Math.max(-1, Math.min(1, upWorld.y));
     const angleErr = Math.acos(dot); // 0 rad when perfectly upright
 
     // torque axis = upWorld × worldUp — rotating about this axis by
     // angleErr brings the body's up vector back to true up.
+    //
+    // I tried deriving this stage's torque the same way as the spin sweep
+    // — solved backward through the real per-motor thrust mixer — and
+    // validated it numerically. It's mathematically exact when unclamped,
+    // but real motor thrust can only push along the body's OWN local "up"
+    // axis: from a rest orientation close to upside-down, that axis points
+    // mostly into the ground, so no achievable motor mix can lift it back
+    // over — a real crashed quad resting inverted has exactly this problem
+    // too. So this final righting stage stays an idealized attitude-hold
+    // torque (the same simplification the normal in-flight roll/pitch
+    // hold already makes with small-angle euler terms) rather than a
+    // literal motor solve that would leave some crashes unrecoverable.
     const axisX = -upWorld.z;
     const axisZ = upWorld.x;
     const torque = new CANNON.Vec3(axisX*RECOVER_KP, 0, axisZ*RECOVER_KP);
@@ -1517,6 +1600,15 @@
     // so it isn't fighting full ground friction through the whole roll
     const liftAssist = Math.max(0, 1 - angleErr/(Math.PI*0.5)) * 1.6;
     droneBody.applyLocalForce(new CANNON.Vec3(0, liftAssist, 0), new CANNON.Vec3(0,0,0));
+
+    // the rotors still visibly spin through this stage — real motors are
+    // what the torque above represents — scaled to how hard the
+    // correction is working, uniformly across all four since (unlike the
+    // spin sweep or normal flight) this stage doesn't solve an exact
+    // per-motor split
+    const effort = Math.min(1, torque.length()/6 + liftAssist/1.6*0.15);
+    const spinLevel = 0.28 + effort*0.5;
+    lastMix = { FL: spinLevel, FR: spinLevel, RL: spinLevel, RR: spinLevel };
 
     const omega = droneBody.angularVelocity.length();
     state.recoveryAngleErrDeg = angleErr * 57.2958;
@@ -1562,6 +1654,9 @@
     state.recoveryStartTime = state.t;
     state.recoveryCompleting = false;
     state.lockAnimDone = false;
+    state.recoveryPhase = 'spin';
+    state.recoverySpinAccumRad = 0;
+    state.recoverySpinStartTime = state.t;
     lastMix = { FL:0, FR:0, RL:0, RR:0 };
     el.btnArm.disabled = true;
     el.btnTakeoff.disabled = true;
@@ -1572,7 +1667,8 @@
     log('<span class="warn">[WARN]</span> <span class="node">/recovery_manager</span> post-impact self-check — initiating autonomous reorientation');
     logTopic('/diagnostics', 'level: <span class="val">1 (WARN)</span> name: "airframe/recovery" message: "autonomous reorientation engaged"');
     logTopic('/recovery/attitude', `initial angle_err: <span class="val">${(Math.acos(Math.max(-1,Math.min(1,droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0)).y)))*57.2958).toFixed(1)}°</span>`);
-    logMission('Autonomous recovery initiated — self-righting airframe');
+    log('<span class="warn">[WARN]</span> <span class="node">/ekf_localization</span> attitude estimate low-confidence post-impact — running open-loop gyro sweep to reacquire reference before correcting');
+    logMission('Diagnostic gyro sweep engaged — reacquiring attitude reference before correction');
     startRecoveryStream();
   }
 
@@ -1600,6 +1696,10 @@
     droneBody.velocity.x *= 0.3;
     droneBody.velocity.z *= 0.3;
     if(droneBody.velocity.y < 0) droneBody.velocity.y *= 0.3;
+    // motors settle to a steady, even hover-prep throttle for the glide,
+    // rather than holding whatever asymmetric correction mix they had the
+    // instant convergence was detected
+    lastMix = { FL: 0.3, FR: 0.3, RL: 0.3, RR: 0.3 };
 
     log('<span class="ok">[INFO]</span> <span class="node">/recovery_manager</span> reorientation converged — easing to level lock');
     logTopic('/cage_monitor', 'structural self-check: <span class="ok">PASS</span> — cage integrity sufficient for relaunch');
@@ -2488,6 +2588,8 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     state.recoveryStartTime = null;
     state.recoveryCompleting = false;
     state.lockAnimDone = false;
+    state.recoveryPhase = null;
+    state.recoverySpinAccumRad = 0;
     state.reportPending = false;
     state.reportAvailable = false;
     state.missionLog = [];
@@ -2981,6 +3083,8 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     if(state.phase === 'recovering'){
       if(state.recoveryCompleting){
         runLockAnimation();
+      } else if(state.recoveryPhase === 'spin'){
+        runDiagnosticSpin(dt);
       } else {
         runRecoveryController(dt);
       }
