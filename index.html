@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DRONE CRASH SIMULATOR — V1.0</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#080b10;
+    --panel:#0c121b;
+    --panel-2:#0f1722;
+    --line:#1c2836;
+    --cyan:#4fd8ff;
+    --cyan-dim:#1e5a70;
+    --green:#3dffa0;
+    --green-dim:#0f4a34;
+    --amber:#ffb020;
+    --red:#ff5d5d;
+    --text:#cfe3f0;
+    --text-dim:#5f7c90;
+    --sky-top:#050810;
+    --sky-bot:#0f2436;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Rajdhani',sans-serif;
+    overflow:hidden;
+  }
+  ::selection{background:var(--cyan-dim);}
+
+  /* ---------- Top bar ---------- */
+  #topbar{
+    height:54px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 18px;
+    background:linear-gradient(180deg,#0c121b,#0a0f16);
+    border-bottom:1px solid var(--line);
+  }
+  #topbar .brand{
+    display:flex;align-items:center;gap:12px;
+  }
+  #topbar .brand .dot{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation:pulse 2s infinite ease-in-out;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  #topbar h1{
+    font-size:18px;letter-spacing:2px;font-weight:700;
+    margin:0;color:#eaf6ff;
+  }
+  #topbar h1 span{color:var(--cyan);}
+  #topbar .sub{font-size:11.5px;color:var(--text-dim);letter-spacing:0.5px;margin-left:6px;}
+  #topbar .right{display:flex;align-items:center;gap:16px;}
+  #clock{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-dim);letter-spacing:1px;}
+  .btn.kiosk-btn{
+    padding:7px 14px;font-size:11px;letter-spacing:1.5px;
+    border-color:var(--line);color:var(--text-dim);
+  }
+  .btn.kiosk-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  body.kiosk{cursor:none;}
+  body.kiosk #credit{display:none;}
+
+  /* ---------- Main layout ---------- */
+  #main{
+    display:flex;
+    height:calc(100% - 54px - 84px);
+  }
+  #viewport-wrap{
+    flex:1.55;
+    position:relative;
+    border-right:1px solid var(--line);
+    background:#000;
+  }
+  canvas{display:block;width:100%;height:100%;}
+
+  /* HUD overlay on canvas */
+  .hud{
+    position:absolute;
+    pointer-events:none;
+    font-family:'JetBrains Mono',monospace;
+    color:var(--cyan);
+    text-shadow:0 0 6px rgba(79,216,255,.35);
+  }
+  #hud-top-left{top:14px;left:16px;font-size:12px;line-height:1.65;}
+  #hud-bottom-left{bottom:14px;left:16px;font-size:12px;line-height:1.65;}
+  .hud .k{color:var(--text-dim);}
+  .hud .v{color:var(--cyan);font-weight:600;}
+  .hud .v.armed{color:var(--red);}
+  .hud .v.ok{color:var(--green);}
+
+  #crosshair{
+    position:absolute;top:50%;left:50%;
+    width:26px;height:26px;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    opacity:.55;
+  }
+  #crosshair::before,#crosshair::after{
+    content:'';position:absolute;background:var(--cyan);
+  }
+  #crosshair::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);}
+  #crosshair::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);}
+
+  #phase-banner{
+    position:absolute;
+    top:14px;left:50%;transform:translateX(-50%);
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:3px;
+    padding:6px 18px;
+    border:1px solid var(--line);
+    background:rgba(9,14,20,.72);
+    color:var(--text-dim);
+    border-radius:2px;
+    pointer-events:none;
+    transition:color .25s, border-color .25s;
+  }
+  #phase-banner.armed{color:var(--amber);border-color:#4a3a14;}
+  #phase-banner.flying{color:var(--green);border-color:var(--green-dim);}
+  #phase-banner.fail{color:var(--red);border-color:#5a1414;animation:blinkFail .9s infinite;}
+  @keyframes blinkFail{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+  /* ---------- ROS console ---------- */
+  #console-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    background:var(--panel);
+    min-width:340px;
+  }
+  #console-tabs{
+    display:flex;
+    border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  #console-tabs .tab{
+    padding:9px 14px;
+    font-size:12px;
+    letter-spacing:1px;
+    color:var(--text-dim);
+    border-right:1px solid var(--line);
+    font-family:'JetBrains Mono',monospace;
+  }
+  #console-tabs .tab.active{color:var(--green);background:var(--panel);}
+
+  #console{
+    flex:1;
+    overflow-y:auto;
+    padding:10px 14px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12.5px;
+    line-height:1.72;
+  }
+  #console::-webkit-scrollbar{width:8px;}
+  #console::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  #console::-webkit-scrollbar-track{background:transparent;}
+
+  .ln{white-space:pre-wrap;word-break:break-word;}
+  .ln .t{color:var(--text-dim);}
+  .ln .node{color:var(--cyan);}
+  .ln .topic{color:var(--amber);}
+  .ln .ok{color:var(--green);}
+  .ln .warn{color:var(--amber);}
+  .ln .err{color:var(--red);}
+  .ln .field{color:#7fa8bf;}
+  .ln .val{color:var(--text);}
+  .ln .dim{color:var(--text-dim);}
+
+  #node-strip{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    padding:10px 14px;
+    border-top:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  .node-chip{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    padding:4px 8px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    color:var(--text-dim);
+    display:flex;align-items:center;gap:5px;
+  }
+  .node-chip .b{width:6px;height:6px;border-radius:50%;background:var(--text-dim);}
+  .node-chip.live{color:var(--green);border-color:var(--green-dim);}
+  .node-chip.live .b{background:var(--green);box-shadow:0 0 5px var(--green);}
+
+  /* ---------- Bottom control bar ---------- */
+  #controlbar{
+    height:84px;
+    display:flex;
+    align-items:center;
+    gap:26px;
+    padding:0 22px;
+    background:linear-gradient(0deg,#0c121b,#0a0f16);
+    border-top:1px solid var(--line);
+  }
+  .btn{
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    letter-spacing:2px;
+    font-size:14px;
+    padding:12px 22px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:3px;
+    cursor:pointer;
+    transition:all .15s ease;
+    position:relative;
+  }
+  .btn:hover:not(:disabled){border-color:var(--cyan);color:#eaf6ff;}
+  .btn:active:not(:disabled){transform:translateY(1px);}
+  .btn:disabled{opacity:.32;cursor:not-allowed;}
+  .btn.arm{border-color:var(--amber);color:var(--amber);}
+  .btn.arm:hover:not(:disabled){background:rgba(255,176,32,.08);}
+  .btn.arm.engaged{background:rgba(255,176,32,.14);}
+  .btn.takeoff{border-color:var(--green);color:var(--green);}
+  .btn.takeoff:hover:not(:disabled){background:rgba(61,255,160,.08);}
+  .btn.land{border-color:var(--cyan);color:var(--cyan);}
+  .btn.fault{border-color:var(--red);color:var(--red);}
+  .btn.fault:hover:not(:disabled){background:rgba(255,93,93,.08);}
+  select.btn.fault{
+    font-family:'JetBrains Mono',monospace;
+    font-weight:500;
+    font-size:11.5px;
+    letter-spacing:0.5px;
+    padding:11px 12px;
+    appearance:none;
+    -webkit-appearance:none;
+  }
+  select.btn.fault option{background:var(--panel-2);color:var(--text);}
+  .btn.reset{border-color:var(--red);color:var(--red);}
+
+  .meter-group{
+    display:flex;gap:22px;
+    margin-left:auto;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .meter{min-width:96px;}
+  .meter .label{font-size:10px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:5px;}
+  .meter .value{font-size:19px;color:var(--cyan);font-weight:600;}
+  .meter .value small{font-size:11px;color:var(--text-dim);margin-left:3px;font-weight:400;}
+  .bar-track{
+    width:96px;height:5px;background:#141d29;border-radius:3px;margin-top:6px;overflow:hidden;
+  }
+  .bar-fill{height:100%;width:0%;background:var(--green);transition:width .12s linear;}
+
+  footer#credit{
+    position:fixed;bottom:2px;right:8px;
+    font-size:10px;color:#233241;
+    font-family:'JetBrains Mono',monospace;
+    pointer-events:none;
+  }
+
+  /* ---------- Crash / incident report ---------- */
+  #crash-overlay{
+    position:fixed;inset:0;z-index:50;
+    background:rgba(3,5,8,.88);
+    display:none;align-items:center;justify-content:center;
+    padding:20px;
+  }
+  #crash-overlay.show{display:flex;}
+  #crash-card{
+    width:min(600px,94vw);max-height:88vh;overflow-y:auto;
+    background:var(--panel);
+    border:1px solid var(--red);
+    border-radius:4px;
+    box-shadow:0 0 60px rgba(255,93,93,.18);
+  }
+  #crash-card header{
+    padding:16px 20px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  #crash-card header h2{
+    margin:0;font-size:16px;letter-spacing:3px;color:var(--red);
+    font-family:'Rajdhani',sans-serif;font-weight:700;
+  }
+  #crash-card header .idtag{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+  #crash-card .body{padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  #crCrashImg{
+    width:100%;display:block;margin-bottom:14px;
+    border:1px solid var(--line);border-radius:4px;
+    filter:saturate(0.85) contrast(1.05);
+    background:#000;
+  }
+  #crash-card .row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:7px 0;}
+  #crash-card .row .k{color:var(--text-dim);letter-spacing:1px;}
+  #crash-card .row .v{color:var(--text);font-weight:600;text-align:right;}
+  #crash-card .blackbox{
+    margin-top:14px;background:#060a10;border:1px solid var(--line);
+    padding:10px 12px;border-radius:3px;font-size:11.5px;line-height:1.7;
+    color:var(--text-dim);white-space:pre-wrap;
+  }
+  #crash-card .rec{margin-top:12px;color:var(--amber);font-size:12px;line-height:1.6;}
+  #crash-card footer{padding:14px 20px;border-top:1px solid var(--line);text-align:right;}
+  #crash-card .note{margin-top:12px;color:var(--text-dim);font-size:10.5px;line-height:1.6;border-top:1px dashed var(--line);padding-top:10px;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand">
+    <div class="dot"></div>
+    <h1>DRONE CRASH <span>SIMULATOR</span></h1>
+    <div class="sub">V1.0 &nbsp;·&nbsp; CANNON.JS RIGID-BODY PHYSICS &nbsp;·&nbsp; SIMULATED ROS 1 GROUND CONTROL</div>
+  </div>
+  <div class="right">
+    <div id="clock">T+00:00:00.0</div>
+    <button class="btn kiosk-btn" id="btnKiosk">⛶ KIOSK</button>
+  </div>
+</div>
+
+<div id="main">
+  <div id="viewport-wrap">
+    <canvas id="scene"></canvas>
+    <div id="crosshair"></div>
+    <div id="phase-banner">STANDBY</div>
+    <div class="hud" id="hud-top-left">
+      <div><span class="k">MODE&nbsp; </span><span class="v" id="hud-mode">STABILIZE</span></div>
+      <div><span class="k">ARMED&nbsp;</span><span class="v" id="hud-armed">FALSE</span></div>
+      <div><span class="k">GPS&nbsp;&nbsp;&nbsp;</span><span class="v ok" id="hud-gps">3D FIX · 11 SATS</span></div>
+    </div>
+    <div class="hud" id="hud-bottom-left">
+      <div><span class="k">ALT&nbsp;&nbsp;&nbsp; </span><span class="v" id="hud-alt">0.00 m</span></div>
+      <div><span class="k">VSPD&nbsp;&nbsp;</span><span class="v" id="hud-vspd">0.00 m/s</span></div>
+      <div><span class="k">THR&nbsp;&nbsp;&nbsp; </span><span class="v" id="hud-thr">0%</span></div>
+    </div>
+  </div>
+
+  <div id="console-wrap">
+    <div id="console-tabs">
+      <div class="tab active">/rosout</div>
+      <div class="tab">rostopic echo</div>
+      <div class="tab">rosnode list</div>
+    </div>
+    <div id="console"></div>
+    <div id="node-strip">
+      <div class="node-chip" id="chip-master"><div class="b"></div>rosmaster</div>
+      <div class="node-chip" id="chip-mavros"><div class="b"></div>/mavros</div>
+      <div class="node-chip" id="chip-ekf"><div class="b"></div>/ekf_localization</div>
+      <div class="node-chip" id="chip-imu"><div class="b"></div>/imu_filter_node</div>
+      <div class="node-chip" id="chip-ctrl"><div class="b"></div>/takeoff_controller</div>
+      <div class="node-chip" id="chip-state"><div class="b"></div>/drone_state_pub</div>
+      <div class="node-chip" id="chip-cage"><div class="b"></div>/cage_monitor</div>
+    </div>
+  </div>
+</div>
+
+<div id="controlbar">
+  <button class="btn arm" id="btnArm">ARM</button>
+  <button class="btn takeoff" id="btnTakeoff" disabled>TAKEOFF</button>
+  <button class="btn land" id="btnLand" disabled>LAND</button>
+  <select class="btn fault" id="failureSelect" disabled style="cursor:pointer;">
+    <option value="random">FAILURE: RANDOM</option>
+  </select>
+  <button class="btn fault" id="btnFault" disabled>SIMULATE FAILURE</button>
+  <button class="btn reset" id="btnReset">RESET</button>
+
+  <div class="meter-group">
+    <div class="meter">
+      <div class="label">ALTITUDE</div>
+      <div class="value" id="mAlt">0.0<small>m</small></div>
+      <div class="bar-track"><div class="bar-fill" id="mAltBar" style="background:var(--cyan);"></div></div>
+    </div>
+    <div class="meter">
+      <div class="label">THROTTLE</div>
+      <div class="value" id="mThr">0<small>%</small></div>
+      <div class="bar-track"><div class="bar-fill" id="mThrBar"></div></div>
+    </div>
+    <div class="meter">
+      <div class="label">MOTOR RPM</div>
+      <div class="value" id="mRpm">0</div>
+      <div class="bar-track"><div class="bar-fill" id="mRpmBar" style="background:var(--amber);"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="crash-overlay">
+  <div id="crash-card">
+    <header>
+      <h2>INCIDENT REPORT</h2>
+      <span class="idtag" id="crIncidentId">INC-000000</span>
+    </header>
+    <div class="body">
+      <img id="crCrashImg" alt="Crash frame capture">
+      <div class="row"><span class="k">FAILURE MODE</span><span class="v" id="crMode">—</span></div>
+      <div class="row"><span class="k">TIME OF FAILURE</span><span class="v" id="crTime">—</span></div>
+      <div class="row"><span class="k">FLIGHT TIME AT FAILURE</span><span class="v" id="crFlightTime">—</span></div>
+      <div class="row"><span class="k">ALTITUDE AT FAILURE</span><span class="v" id="crAlt">—</span></div>
+      <div class="row"><span class="k">FREEFALL DURATION</span><span class="v" id="crFall">—</span></div>
+      <div class="row"><span class="k">IMPACT VELOCITY</span><span class="v" id="crImpact">—</span></div>
+      <div class="row"><span class="k">IMPACT G-FORCE</span><span class="v" id="crGforce">—</span></div>
+      <div class="row"><span class="k">ATTITUDE AT IMPACT</span><span class="v" id="crAttitude">—</span></div>
+      <div class="row"><span class="k">HOME DISTANCE</span><span class="v" id="crHome">—</span></div>
+      <div class="row"><span class="k">WIND CONDITIONS</span><span class="v" id="crWind">—</span></div>
+      <div class="row"><span class="k">BATTERY AT IMPACT</span><span class="v" id="crBattery">—</span></div>
+      <div class="row"><span class="k">BATTERY TEMP</span><span class="v" id="crBattTemp">—</span></div>
+      <div class="row"><span class="k">RC LINK / RSSI</span><span class="v" id="crRssi">—</span></div>
+      <div class="row"><span class="k">GPS STATUS</span><span class="v" id="crGps">—</span></div>
+      <div class="row"><span class="k">FIRMWARE</span><span class="v" id="crFirmware">—</span></div>
+      <div class="row"><span class="k">PROTECTIVE CAGE</span><span class="v" id="crCage">—</span></div>
+      <div class="row"><span class="k">CAGE DAMAGE</span><span class="v" id="crCageDamage">—</span></div>
+      <div class="blackbox" id="crBlackbox">—</div>
+      <div class="rec" id="crRec">—</div>
+      <div class="note">Impact velocity, freefall duration, and attitude at impact are computed by a real cannon.js rigid-body simulation. G-force is estimated from impact velocity using Δv / (g × assumed stopping time of 50ms) — a standard simplified impact-mechanics approximation, not a measured value. Battery, wind, RF-link and GPS figures are simulated telemetry flavor, not physically modeled.</div>
+    </div>
+    <footer><button class="btn reset" id="btnCrashAck">ACKNOWLEDGE &amp; RESET</button></footer>
+  </div>
+</div>
+
+<footer id="credit">local simulation · cannon.js physics · no network calls</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  if(typeof CANNON === 'undefined'){
+    document.body.innerHTML = '<div style="color:#ff5d5d;font-family:monospace;padding:40px;font-size:14px;">Physics engine (cannon.js) failed to load from the CDN — check your internet connection and reload. This simulator needs it for real rigid-body flight dynamics.</div>';
+    return;
+  }
+
+  /* ============================================================
+     STATE
+  ============================================================ */
+  const state = {
+    phase: "idle",
+    armed: false,
+    throttle: 0,          // 0..1, average commanded motor thrust fraction
+    motorRpm: 0,           // visual proxy derived from commanded thrust
+    altitude: 0,            // meters, height above the launch pad (AGL)
+    vspeed: 0,               // m/s, real physics-body vertical velocity
+    targetAlt: 4.2,
+    t: 0,
+    startTime: performance.now(),
+    tilt: 0,                 // real bank angle (deg) derived from body orientation, drives the 2D sprite rotation
+    attitudeRoll: 0,          // deg, captured for the incident report
+    attitudePitch: 0,
+    cageRot: 0.55,             // fixed viewing angle of the protective cage sphere (stationary)
+    crashed: false,
+    failureMode: null,
+    failureStartAlt: 0,
+    failureStartTime: 0,
+    strikeApplied: false,
+  };
+
+  const el = {
+    console: document.getElementById('console'),
+    phaseBanner: document.getElementById('phase-banner'),
+    hudMode: document.getElementById('hud-mode'),
+    hudArmed: document.getElementById('hud-armed'),
+    hudAlt: document.getElementById('hud-alt'),
+    hudVspd: document.getElementById('hud-vspd'),
+    hudThr: document.getElementById('hud-thr'),
+    clock: document.getElementById('clock'),
+    mAlt: document.getElementById('mAlt'),
+    mAltBar: document.getElementById('mAltBar'),
+    mThr: document.getElementById('mThr'),
+    mThrBar: document.getElementById('mThrBar'),
+    mRpm: document.getElementById('mRpm'),
+    mRpmBar: document.getElementById('mRpmBar'),
+    btnArm: document.getElementById('btnArm'),
+    btnTakeoff: document.getElementById('btnTakeoff'),
+    btnLand: document.getElementById('btnLand'),
+    btnFault: document.getElementById('btnFault'),
+    failureSelect: document.getElementById('failureSelect'),
+    btnReset: document.getElementById('btnReset'),
+    btnKiosk: document.getElementById('btnKiosk'),
+    btnCrashAck: document.getElementById('btnCrashAck'),
+    crashOverlay: document.getElementById('crash-overlay'),
+  };
+
+  const FAIL_MODES = [
+    { name:'ESC desync — Motor 2', log1:'ESC desync detected on motor 2 — PWM feedback lost', diag:'motor_2/esc', msg:'desync',
+      cause:'The electronic speed controller for motor 2 lost synchronization, producing asymmetric thrust and an uncontrolled roll.' },
+    { name:'LiPo cell voltage collapse', log1:'battery cell 3 voltage collapse — under-voltage lockout', diag:'power/battery', msg:'cell_undervoltage',
+      cause:'A battery cell voltage dropped below the safe threshold, triggering an automatic power cutback mid-flight.' },
+    { name:'Propeller delamination — Motor 4', log1:'vibration spike on motor 4 — propeller structural failure suspected', diag:'airframe/prop_4', msg:'delamination',
+      cause:'A propeller blade separated from its hub, eliminating thrust from motor 4 and inducing a violent spin.' },
+    { name:'Flight controller IMU fault', log1:'IMU0 gyro saturation — sensor fusion rejected', diag:'fcu/imu0', msg:'gyro_saturation',
+      cause:'The primary IMU produced inconsistent readings, causing the attitude estimator to lose lock on true orientation.' },
+    { name:'GPS lock loss — uncontrolled descent', log1:'GPS 3D fix lost — position hold unavailable', diag:'nav/gps', msg:'fix_lost',
+      cause:"Loss of GPS lock during position-hold removed the drone's horizontal reference, and residual heading drift went uncorrected." },
+    { name:'RC link loss — failsafe rejected', log1:'RC link timeout (2.1s) — entering FAILSAFE', diag:'radio/rc_link', msg:'link_timeout',
+      cause:'The control link to the transmitter was lost for longer than the failsafe timeout, and the configured return-to-launch action failed to engage — the flight controller froze its outputs open-loop.' },
+    { name:'Motor bearing seizure — Motor 1', log1:'motor 1 stall detected — back-EMF signature abnormal', diag:'motor_1/bearing', msg:'bearing_seizure',
+      cause:'A worn motor bearing seized under load, abruptly stopping motor 1 and removing a quarter of total lift.' },
+    { name:'Flight controller firmware watchdog reset', log1:'FCU watchdog timeout — firmware forced reboot', diag:'fcu/firmware', msg:'watchdog_reset',
+      cause:'The flight controller firmware hung and was force-rebooted by its watchdog, briefly zeroing all motor outputs mid-flight.' },
+    { name:'Wind gust exceeding control authority', log1:'commanded attitude vs actual attitude divergence > 35°', diag:'env/wind', msg:'gust_exceedance',
+      cause:"A sudden wind gust exceeded the airframe's maximum control authority, overpowering the attitude controller." },
+    { name:'Foreign object strike (bird / debris)', log1:'sudden asymmetric drag + motor 3 overcurrent', diag:'airframe/impact', msg:'foreign_object_strike',
+      cause:'An in-flight collision with a foreign object imparted a sudden impulse and damaged a propeller, destabilizing the airframe.' },
+    { name:'Carbon arm structural failure — Arm 3', log1:'motor 3 mount displacement — structural integrity lost', diag:'airframe/arm_3', msg:'structural_failure',
+      cause:'A carbon-fiber arm fractured under load, dropping a motor out of alignment and removing effective thrust on that side.' },
+    { name:'Compass / magnetometer interference', log1:'compass variance exceeds 45° — yaw estimate rejected', diag:'nav/compass', msg:'mag_interference',
+      cause:'Nearby magnetic interference corrupted the compass heading, causing the flight controller to command a hard, incorrect yaw correction.' },
+    { name:'Battery thermal runaway', log1:'battery pack temperature 87°C — thermal event in progress', diag:'power/battery_temp', msg:'thermal_runaway',
+      cause:'Internal cell damage triggered a thermal runaway event, causing a rapidly worsening power loss across all four motors.' },
+    { name:'State estimator crash (EKF NaN)', log1:'EKF covariance matrix non-finite — estimator reset', diag:'ekf/state_estimator', msg:'nan_covariance',
+      cause:'The state estimator produced a non-finite (NaN) covariance value and reset, leaving the flight controller with no attitude correction at all.' },
+    { name:'Operator input error — abrupt throttle cut', log1:'commanded throttle dropped 0.9→0.1 in 40ms', diag:'input/rc_throttle', msg:'abrupt_input',
+      cause:'An abrupt manual throttle reduction removed lift faster than the airframe could recover from, at an altitude too low to correct.' },
+  ];
+
+  /* ============================================================
+     FAKE ROS CONSOLE
+  ============================================================ */
+  function nowStamp(){
+    const s = (performance.now() - state.startTime)/1000;
+    return s.toFixed(3);
+  }
+
+  function log(html){
+    const line = document.createElement('div');
+    line.className = 'ln';
+    line.innerHTML = `<span class="t">[${nowStamp()}]</span> ${html}`;
+    el.console.appendChild(line);
+    while(el.console.children.length > 260){
+      el.console.removeChild(el.console.firstChild);
+    }
+    el.console.scrollTop = el.console.scrollHeight;
+  }
+
+  function logTopic(topic, body){
+    log(`<span class="topic">${topic}</span> ${body}`);
+  }
+
+  function activateChip(id){
+    const c = document.getElementById(id);
+    if(c) c.classList.add('live');
+  }
+  function deactivateChip(id){
+    const c = document.getElementById(id);
+    if(c) c.classList.remove('live');
+  }
+
+  function bootSequence(){
+    const boot = [
+      ['<span class="ok">[INFO]</span> Started roscore. master URI: <span class="field">http://localhost:11311</span>', 0],
+      ['<span class="ok">[INFO]</span> Physics engine <span class="field">cannon.js</span> initialized — 1.2kg rigid-body airframe, 4-motor thrust/torque mixer, PID altitude+attitude hold', 150],
+      ['<span class="ok">[INFO]</span> <span class="node">/mavros</span> connected on <span class="field">udp://:14540@</span>', 320, ()=>activateChip('chip-mavros')],
+      ['<span class="ok">[INFO]</span> <span class="node">/ekf_localization</span> subscribing <span class="topic">/mavros/imu/data</span>, <span class="topic">/mavros/global_position/raw/fix</span>', 520, ()=>activateChip('chip-ekf')],
+      ['<span class="ok">[INFO]</span> <span class="node">/imu_filter_node</span> publishing <span class="topic">/imu/filtered</span> @ 200Hz', 680, ()=>activateChip('chip-imu')],
+      ['<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> waiting for <span class="field">ARM</span> service call', 860, ()=>activateChip('chip-ctrl')],
+      ['<span class="ok">[INFO]</span> <span class="node">/drone_state_pub</span> publishing <span class="topic">/mavros/state</span> @ 5Hz', 1020, ()=>activateChip('chip-state')],
+      ['<span class="ok">[INFO]</span> <span class="node">/cage_monitor</span> protective cage ring integrity: <span class="val">6/6 OK</span>', 1120, ()=>activateChip('chip-cage')],
+      ['<span class="dim">rosnode list</span>', 1200],
+      ['<span class="dim">  /mavros\n  /ekf_localization\n  /imu_filter_node\n  /takeoff_controller\n  /drone_state_pub\n  /rosout</span>', 1250],
+      ['<span class="warn">[WARN]</span> EKF variance nominal, waiting for GPS 3D fix...', 1550],
+      ['<span class="ok">[INFO]</span> GPS 3D fix acquired · 11 satellites · HDOP 0.9', 2150, ()=>activateChip('chip-master')],
+      ['<span class="topic">/mavros/state</span> connected: <span class="val">true</span>  armed: <span class="val">false</span>  mode: <span class="val">STABILIZE</span>', 2450],
+      ['<span class="dim">System nominal. Awaiting operator command.</span>', 2750],
+    ];
+    boot.forEach(([html, delay, cb])=>{
+      setTimeout(()=>{ log(html); if(cb) cb(); }, delay);
+    });
+  }
+
+  let imuTimer = null;
+  function startImuStream(){
+    if(imuTimer) return;
+    imuTimer = setInterval(()=>{
+      const ax = (Math.random()*0.06-0.03).toFixed(3);
+      const ay = (Math.random()*0.06-0.03).toFixed(3);
+      const az = (9.81 + (Math.random()*0.04-0.02)).toFixed(3);
+      logTopic('/mavros/imu/data', `lin_acc: [<span class="val">${ax}</span>, <span class="val">${ay}</span>, <span class="val">${az}</span>]`);
+    }, 1400);
+  }
+
+  let poseTimer = null;
+  function startPoseStream(){
+    if(poseTimer) return;
+    poseTimer = setInterval(()=>{
+      const z = state.altitude.toFixed(3);
+      const vz = state.vspeed.toFixed(3);
+      logTopic('/mavros/local_position/pose', `z: <span class="val">${z}</span> m &nbsp; vz: <span class="val">${vz}</span> m/s`);
+    }, 700);
+  }
+
+  /* ============================================================
+     PHYSICS ENGINE — cannon.js rigid-body simulation
+     A real quadcopter model: 4 motors at fixed arm offsets, each
+     producing thrust along the body's local +Y axis. Roll/pitch
+     torque emerges from the lever-arm offset of each force (r×F)
+     via cannon.js's own rigid-body solver — it is not scripted.
+     Yaw comes from alternating motor spin-reaction torque. A small
+     PID loop holds altitude and attitude the way a real flight
+     controller's inner/outer loops work. The protective cage is
+     modeled as the drone's actual collision hull, so it is what
+     physically absorbs ground impact.
+  ============================================================ */
+  const DRONE_MASS = 1.2;            // kg
+  const ARM = 0.16;                  // m, motor offset from center of mass
+  const MAX_THRUST_PER_MOTOR = 5.4;  // N
+  const TORQUE_CONST = 0.02;         // yaw reaction torque per N of thrust
+  const CAGE_RADIUS = 0.35;          // m — also the collision hull radius
+  const HOVER_THROTTLE = (DRONE_MASS*9.81)/(4*MAX_THRUST_PER_MOTOR);
+  const STOP_TIME = 0.05;            // s, assumed crumple/stopping time for the G-force estimate
+  const GROUND_OFFSET = CAGE_RADIUS; // the cage rests on the ground at this physics-Y height
+
+  const world = new CANNON.World();
+  world.gravity.set(0, -9.81, 0);
+  world.broadphase = new CANNON.NaiveBroadphase();
+  world.solver.iterations = 10;
+
+  const groundMat = new CANNON.Material('ground');
+  const droneMat = new CANNON.Material('drone');
+  world.addContactMaterial(new CANNON.ContactMaterial(groundMat, droneMat, { friction: 0.4, restitution: 0.15 }));
+
+  const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: groundMat });
+  groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
+  world.addBody(groundBody);
+
+  const droneBody = new CANNON.Body({ mass: DRONE_MASS, position: new CANNON.Vec3(0, GROUND_OFFSET+0.001, 0), material: droneMat });
+  droneBody.addShape(new CANNON.Box(new CANNON.Vec3(0.09,0.04,0.09))); // chassis (fully enclosed by the cage sphere below)
+  droneBody.addShape(new CANNON.Sphere(CAGE_RADIUS));                  // protective cage — the real collision hull
+  droneBody.linearDamping = 0.05;
+  droneBody.angularDamping = 0.4;
+  world.addBody(droneBody);
+
+  const MOTOR_POS = {
+    FL: new CANNON.Vec3(-ARM, 0, -ARM),
+    FR: new CANNON.Vec3( ARM, 0, -ARM),
+    RL: new CANNON.Vec3(-ARM, 0,  ARM),
+    RR: new CANNON.Vec3( ARM, 0,  ARM),
+  };
+  const MOTOR_SPIN = { FL: 1, FR: -1, RL: -1, RR: 1 }; // alternating CW/CCW for yaw authority
+  const MOTOR_KEYS = ['FL','FR','RL','RR'];
+  let lastMix = { FL:0, FR:0, RL:0, RR:0 };
+
+  function eulerFromQuat(q){
+    const sinr_cosp = 2*(q.w*q.x + q.y*q.z);
+    const cosr_cosp = 1 - 2*(q.x*q.x + q.y*q.y);
+    const roll = Math.atan2(sinr_cosp, cosr_cosp);
+    const sinp = 2*(q.w*q.y - q.z*q.x);
+    const pitch = Math.abs(sinp) >= 1 ? Math.sign(sinp)*Math.PI/2 : Math.asin(sinp);
+    return { roll, pitch };
+  }
+
+  let altIntegral = 0, altPrevErr = 0;
+  let crashHandled = false;
+
+  function resetPhysicsBody(){
+    droneBody.position.set(0, GROUND_OFFSET+0.001, 0);
+    droneBody.velocity.set(0,0,0);
+    droneBody.angularVelocity.set(0,0,0);
+    droneBody.quaternion.set(0,0,0,1);
+    droneBody.force.set(0,0,0);
+    droneBody.torque.set(0,0,0);
+    altIntegral = 0; altPrevErr = 0;
+    crashHandled = false;
+    state.strikeApplied = false;
+    lastMix = { FL:0, FR:0, RL:0, RR:0 };
+  }
+
+  droneBody.addEventListener('collide', function(e){
+    if(crashHandled) return;
+    if(state.phase !== 'failure') return; // a controlled touchdown is handled separately, not as a "crash"
+    const impactVel = Math.abs(e.contact.getImpactVelocityAlongNormal());
+    if(impactVel < 0.4) return; // ignore tiny settling contacts
+    crashHandled = true;
+    const { roll, pitch } = eulerFromQuat(droneBody.quaternion);
+    state.attitudeRoll = Math.round(roll*57.2958);
+    state.attitudePitch = Math.round(pitch*57.2958);
+    state.crashed = true;
+    setPhase('crashed');
+    finalizeCrash(impactVel);
+  });
+
+  // One control-loop tick: altitude + attitude PID -> motor mixer -> real
+  // forces/torques on the rigid body. An active failure corrupts either
+  // the sensor feedback or the mixer output exactly the way that failure
+  // would in reality — the resulting tumble/fall is computed by the
+  // physics engine, never animated by hand.
+  function runController(dt){
+    const p = state.phase;
+    const flying = ['spooling','ascending','hover','landing','failure'].includes(p);
+    if(!flying){ lastMix = { FL:0, FR:0, RL:0, RR:0 }; return; }
+
+    const fm = state.failureMode;
+    const failing = (p === 'failure') && !!fm;
+    const openLoop = failing && (fm.msg === 'link_timeout' || fm.msg === 'nan_covariance');
+
+    let mix;
+    if(openLoop){
+      // total loss of the correction loop: motors hold roughly their last
+      // command with no feedback at all. Real airframes are never perfectly
+      // symmetric, so a small uncorrected bias torque is what actually
+      // sends an "uncontrolled" drone into a slow, inevitable tumble.
+      mix = { FL:HOVER_THROTTLE, FR:HOVER_THROTTLE, RL:HOVER_THROTTLE, RR:HOVER_THROTTLE };
+      droneBody.torque.vadd(new CANNON.Vec3(0.045, 0.01, 0.03), droneBody.torque);
+    } else {
+      let { roll, pitch } = eulerFromQuat(droneBody.quaternion);
+      let rollRate = droneBody.angularVelocity.z;
+      let pitchRate = droneBody.angularVelocity.x;
+      let yawRate = droneBody.angularVelocity.y;
+
+      if(failing && fm.msg === 'gyro_saturation'){
+        // corrupted sensor feedback — the controller reacts to bad data
+        roll += (Math.random()-0.5)*1.4;
+        pitch += (Math.random()-0.5)*1.4;
+      }
+      if(failing && fm.msg === 'mag_interference'){
+        yawRate += 3.5; // corrupted heading drives a hard, wrong yaw correction
+      }
+
+      const targetY = (p === 'landing') ? GROUND_OFFSET : GROUND_OFFSET + state.targetAlt;
+      const altErr = targetY - droneBody.position.y;
+      altIntegral = Math.max(-1.2, Math.min(1.2, altIntegral + altErr*dt));
+      const altDeriv = (altErr - altPrevErr)/dt;
+      altPrevErr = altErr;
+
+      let throttle = HOVER_THROTTLE + 0.65*altErr + 0.08*altIntegral + 0.85*altDeriv;
+      if(failing && fm.msg === 'abrupt_input') throttle = 0.08; // operator yanked the stick down
+      throttle = Math.max(0, Math.min(1, throttle));
+
+      const rollCmd = -0.6*roll - 0.15*rollRate;
+      const pitchCmd = -0.6*pitch - 0.15*pitchRate;
+      const yawCmd = -0.02*yawRate;
+
+      mix = {
+        FL: throttle - rollCmd + pitchCmd + yawCmd,
+        FR: throttle + rollCmd + pitchCmd - yawCmd,
+        RL: throttle - rollCmd - pitchCmd - yawCmd,
+        RR: throttle + rollCmd - pitchCmd + yawCmd,
+      };
+      for(const k of MOTOR_KEYS) mix[k] = Math.max(0, Math.min(1, mix[k]));
+
+      if(failing){
+        switch(fm.msg){
+          case 'desync':             mix.FR = Math.random()*0.9; break;
+          case 'delamination':       mix.RR = 0; break;
+          case 'bearing_seizure':    mix.FL = 0; break;
+          case 'structural_failure': mix.RL = 0; break;
+          case 'foreign_object_strike': mix.RL *= 0.35; break;
+          case 'watchdog_reset':
+            if(state.t - state.failureStartTime < 0.4){ mix = {FL:0,FR:0,RL:0,RR:0}; }
+            break;
+          case 'cell_undervoltage':
+          case 'thermal_runaway': {
+            const rate = fm.msg === 'thermal_runaway' ? 0.7 : 0.35;
+            const decay = Math.max(0.12, 1 - (state.t - state.failureStartTime)*rate);
+            for(const k of MOTOR_KEYS) mix[k] *= decay;
+            break;
+          }
+          default: break; // fix_lost / gust_exceedance handled as external disturbances below
+        }
+      }
+    }
+
+    for(const k of MOTOR_KEYS) mix[k] = Math.max(0, Math.min(1, mix[k]));
+    lastMix = mix;
+
+    let yawTorque = 0;
+    for(const k of MOTOR_KEYS){
+      const thrust = mix[k]*MAX_THRUST_PER_MOTOR;
+      droneBody.applyLocalForce(new CANNON.Vec3(0, thrust, 0), MOTOR_POS[k]);
+      yawTorque += thrust*TORQUE_CONST*MOTOR_SPIN[k];
+    }
+    const worldYaw = droneBody.quaternion.vmult(new CANNON.Vec3(0, yawTorque, 0));
+    droneBody.torque.vadd(worldYaw, droneBody.torque);
+
+    if(failing && fm.msg === 'gust_exceedance'){
+      // a real external disturbance applied to the body, not a scripted wobble
+      droneBody.applyForce(new CANNON.Vec3((Math.random()-0.5)*14, 0, (Math.random()-0.5)*14), droneBody.position);
+      droneBody.torque.vadd(new CANNON.Vec3((Math.random()-0.5)*2.5,(Math.random()-0.5)*1,(Math.random()-0.5)*2.5), droneBody.torque);
+    }
+    if(failing && fm.msg === 'foreign_object_strike' && !state.strikeApplied){
+      state.strikeApplied = true;
+      droneBody.applyImpulse(new CANNON.Vec3((Math.random()-0.5)*1.2, -0.3, (Math.random()-0.5)*1.2), droneBody.position);
+    }
+    if(failing && fm.msg === 'fix_lost'){
+      droneBody.torque.vadd(new CANNON.Vec3(0,0.03,0), droneBody.torque); // slow uncorrected heading drift
+    }
+  }
+
+  function syncStateFromBody(){
+    state.altitude = Math.max(0, droneBody.position.y - GROUND_OFFSET);
+    state.vspeed = droneBody.velocity.y;
+    const { roll, pitch } = eulerFromQuat(droneBody.quaternion);
+    state.attitudeRoll = Math.round(roll*57.2958);
+    state.attitudePitch = Math.round(pitch*57.2958);
+    // reduce full 3D orientation to the single bank angle the 2D side-view needs
+    const upWorld = droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0));
+    const bankMag = Math.acos(Math.max(-1, Math.min(1, upWorld.y))) * 57.2958;
+    state.tilt = (upWorld.x < 0 ? -1 : 1) * bankMag;
+    const avgMix = (lastMix.FL+lastMix.FR+lastMix.RL+lastMix.RR)/4;
+    const targetRpm = avgMix>0 ? 900 + avgMix*6400 : 0;
+    state.motorRpm += (targetRpm - state.motorRpm) * 0.25;
+    state.throttle = avgMix;
+  }
+
+  /* ============================================================
+     CONTROL HANDLERS
+  ============================================================ */
+  function setPhase(p){
+    state.phase = p;
+    el.phaseBanner.className = '';
+    const map = {
+      idle: ['STANDBY', ''],
+      arming: ['ARMING…', 'armed'],
+      armed: ['ARMED · READY', 'armed'],
+      spooling: ['MOTORS SPOOLING', 'armed'],
+      ascending: ['TAKEOFF · ASCENDING', 'flying'],
+      hover: ['HOVER · HOLDING ALTITUDE', 'flying'],
+      landing: ['LANDING', 'armed'],
+      failure: ['MECHANICAL FAILURE · LOSS OF CONTROL', 'fail'],
+      crashed: ['CRASHED · SYSTEM HALTED', 'fail'],
+    };
+    const [label, cls] = map[p] || [p.toUpperCase(), ''];
+    el.phaseBanner.textContent = label;
+    if(cls) el.phaseBanner.classList.add(cls);
+  }
+
+  el.btnArm.addEventListener('click', ()=>{
+    if(state.armed) return;
+    el.btnArm.disabled = true;
+    setPhase('arming');
+    log('<span class="dim">operator@gcs:~$</span> rosservice call <span class="field">/mavros/cmd/arming</span> "value: true"');
+    logTopic('/mavros/state', 'armed: <span class="val">false</span> → arming sequence initiated');
+    startImuStream();
+    setTimeout(()=>{
+      state.armed = true;
+      logTopic('/mavros/state', 'connected: <span class="val">true</span>  armed: <span class="val">true</span>  mode: <span class="val">GUIDED</span>');
+      log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> pre-arm checks: <span class="ok">PASSED</span>');
+      setPhase('armed');
+      el.hudArmed.textContent = 'TRUE';
+      el.hudArmed.classList.add('armed');
+      el.hudMode.textContent = 'GUIDED';
+      el.btnTakeoff.disabled = false;
+      el.btnArm.classList.add('engaged');
+      el.btnArm.textContent = 'DISARM';
+      el.btnArm.disabled = false;
+    }, 1300);
+  });
+
+  // convert ARM button into a toggle once armed
+  el.btnArm.addEventListener('click', function toggle(){
+    if(el.btnArm.textContent === 'DISARM' && state.phase === 'armed'){
+      state.armed = false;
+      el.hudArmed.textContent = 'FALSE';
+      el.hudArmed.classList.remove('armed');
+      el.hudMode.textContent = 'STABILIZE';
+      el.btnArm.textContent = 'ARM';
+      el.btnArm.classList.remove('engaged');
+      el.btnTakeoff.disabled = true;
+      setPhase('idle');
+      log('<span class="dim">operator@gcs:~$</span> rosservice call <span class="field">/mavros/cmd/arming</span> "value: false"');
+      logTopic('/mavros/state', 'armed: <span class="val">false</span>');
+    }
+  });
+
+  el.btnTakeoff.addEventListener('click', ()=>{
+    if(state.phase !== 'armed') return;
+    el.btnTakeoff.disabled = true;
+    el.btnArm.disabled = true;
+    setPhase('spooling');
+    log('<span class="dim">operator@gcs:~$</span> rostopic pub <span class="field">/takeoff_controller/goal</span> <span class="field">altitude: 4.2</span>');
+    log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> executing TAKEOFF behavior · target alt <span class="val">4.2m</span>');
+    startPoseStream();
+    setTimeout(()=>{
+      setPhase('ascending');
+      el.btnLand.disabled = false;
+      el.btnFault.disabled = false;
+      el.failureSelect.disabled = false;
+    }, 900);
+  });
+
+  el.btnLand.addEventListener('click', ()=>{
+    if(state.phase !== 'hover' && state.phase !== 'ascending') return;
+    el.btnLand.disabled = true;
+    el.btnFault.disabled = true;
+    el.failureSelect.disabled = true;
+    setPhase('landing');
+    log('<span class="dim">operator@gcs:~$</span> rostopic pub <span class="field">/takeoff_controller/goal</span> <span class="field">altitude: 0.0</span>');
+    log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> executing LAND behavior');
+  });
+
+  // populate the failure-mode picker from FAIL_MODES
+  FAIL_MODES.forEach((m, i)=>{
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = m.name.toUpperCase();
+    el.failureSelect.appendChild(opt);
+  });
+
+  function triggerFailure(forced){
+    if(state.crashed) return;
+    if(!(state.phase==='ascending' || state.phase==='hover' || state.phase==='spooling')) return;
+    let mode;
+    if(forced === true){
+      const sel = el.failureSelect.value;
+      mode = sel === 'random' ? FAIL_MODES[Math.floor(Math.random()*FAIL_MODES.length)] : FAIL_MODES[parseInt(sel,10)];
+    } else {
+      mode = FAIL_MODES[Math.floor(Math.random()*FAIL_MODES.length)];
+    }
+    state.failureMode = mode;
+    state.failureStartAlt = state.altitude;
+    state.failureStartTime = state.t;
+    state.strikeApplied = false;
+    el.btnLand.disabled = true;
+    el.btnFault.disabled = true;
+    el.failureSelect.disabled = true;
+    setPhase('failure');
+    log(`<span class="err">[ERROR]</span> <span class="node">/mavros</span> ${mode.log1}`);
+    log('<span class="err">[ERROR]</span> <span class="node">/ekf_localization</span> covariance divergence — attitude estimate unreliable');
+    logTopic('/diagnostics', `level: <span class="val">2 (ERROR)</span> name: <span class="val">"${mode.diag}"</span> message: "<span class="val">${mode.msg}</span>"`);
+    logTopic('/mavros/state', 'armed: <span class="val">true</span>  mode: <span class="val">EMERGENCY</span>');
+    log('<span class="warn">[WARN]</span> <span class="node">/takeoff_controller</span> control loop watchdog timeout — recovery unavailable');
+  }
+
+  el.btnFault.addEventListener('click', ()=>triggerFailure(true));
+
+  function finalizeCrash(impactV){
+    const fallDuration = Math.max(0, state.t - state.failureStartTime);
+    const incId = 'INC-' + Math.floor(100000 + Math.random()*899999);
+    const fm = state.failureMode;
+    log('<span class="err">[FATAL]</span> <span class="node">/drone_state_pub</span> impact detected — telemetry link lost');
+    logTopic('/mavros/state', 'connected: <span class="val">false</span>');
+    log('<span class="err">[FATAL]</span> <span class="node">/cage_monitor</span> impact absorbed by protective cage — airframe integrity: <span class="val">DAMAGED</span>');
+    deactivateChip('chip-mavros');
+    deactivateChip('chip-state');
+
+    // real, physics-computed telemetry
+    const gForce = (Math.abs(impactV) / (9.81*STOP_TIME)).toFixed(1) + ' G';
+    const roll = state.attitudeRoll;
+    const pitch = state.attitudePitch;
+
+    // simulated (not physically modeled) supporting telemetry
+    const homeDist = (Math.random()*1.8).toFixed(1) + ' m from launch point';
+    const windOptions = ['Calm, <2 kt','6 kt SW, gusting 10 kt','13 kt ESE, gusting 19 kt','Light breeze, 4 kt N'];
+    const wind = fm.msg === 'gust_exceedance' ? '22 kt gusting 31 kt, NW' : windOptions[Math.floor(Math.random()*windOptions.length)];
+
+    let battPct = Math.max(4, Math.round(94 - state.t*0.7 - Math.random()*6));
+    let battV = (16.8 * (battPct/94)).toFixed(1);
+    let battTemp = Math.round(34 + Math.random()*8);
+    if(fm.msg === 'cell_undervoltage'){ battPct = Math.max(2, battPct-30); battV = (3.1*4).toFixed(1); }
+    if(fm.msg === 'thermal_runaway'){ battTemp = Math.round(82 + Math.random()*13); battPct = Math.max(2, battPct-20); }
+
+    const rssi = fm.msg === 'link_timeout' ? '-97dBm · LINK LOST' : `-${Math.round(58+Math.random()*20)}dBm · DEGRADED`;
+    const gps = fm.msg === 'fix_lost' ? 'NO FIX · LOST' : `3D FIX · ${Math.round(6+Math.random()*5)} SATS (DEGRADED)`;
+    const firmware = ['PX4 v1.14.3','ArduCopter 4.5.7','PX4 v1.15.0-rc2','ArduCopter 4.4.4'][Math.floor(Math.random()*4)];
+    const cageDamage = ['2 of 6 rings deformed — payload protected','Outer ring cracked, inner frame intact','No visible damage — cage absorbed full impact','4 of 6 rings deformed, airframe still enclosed'][Math.floor(Math.random()*4)];
+
+    document.getElementById('crIncidentId').textContent = incId;
+    document.getElementById('crMode').textContent = fm.name;
+    document.getElementById('crTime').textContent = el.clock.textContent;
+    document.getElementById('crFlightTime').textContent = state.failureStartTime.toFixed(1) + 's';
+    document.getElementById('crAlt').textContent = state.failureStartAlt.toFixed(2) + ' m';
+    document.getElementById('crFall').textContent = fallDuration.toFixed(2) + 's';
+    document.getElementById('crImpact').textContent = Math.abs(impactV).toFixed(2) + ' m/s';
+    document.getElementById('crGforce').textContent = gForce;
+    document.getElementById('crAttitude').textContent = `roll ${roll}° / pitch ${pitch}°`;
+    document.getElementById('crHome').textContent = homeDist;
+    document.getElementById('crWind').textContent = wind;
+    document.getElementById('crBattery').textContent = `${battV}V · ${battPct}%`;
+    document.getElementById('crBattTemp').textContent = battTemp + '°C';
+    document.getElementById('crRssi').textContent = rssi;
+    document.getElementById('crGps').textContent = gps;
+    document.getElementById('crFirmware').textContent = firmware;
+    document.getElementById('crCage').textContent = 'Deployed — absorbed impact';
+    document.getElementById('crCageDamage').textContent = cageDamage;
+    document.getElementById('crBlackbox').textContent =
+`[BLACK BOX — LAST TELEMETRY]
+mode: EMERGENCY   armed: true
+throttle: ${Math.round(state.throttle*100)}%   motor_rpm: ${Math.round(state.motorRpm)}
+battery: ${battV}V (${battPct}%)   gps: ${gps}
+rc_link: ${rssi}   wind: ${wind}
+diagnostic: ${fm.diag} -> ${fm.msg}`;
+    document.getElementById('crRec').textContent = fm.cause + ' Recommend grounding the airframe for inspection before next flight.';
+
+    setTimeout(()=>{
+      try{
+        document.getElementById('crCrashImg').src = canvas.toDataURL('image/png');
+      }catch(e){ /* canvas capture unavailable — report still shows without it */ }
+    }, 220);
+
+    el.crashOverlay.classList.add('show');
+  }
+
+  function resetSimulation(){
+    state.phase = 'idle';
+    state.armed = false;
+    state.throttle = 0;
+    state.motorRpm = 0;
+    state.altitude = 0;
+    state.vspeed = 0;
+    state.tilt = 0;
+    state.attitudeRoll = 0;
+    state.attitudePitch = 0;
+    state.crashed = false;
+    state.failureMode = null;
+
+    resetPhysicsBody();
+
+    el.crashOverlay.classList.remove('show');
+    el.hudArmed.textContent = 'FALSE';
+    el.hudArmed.classList.remove('armed');
+    el.hudMode.textContent = 'STABILIZE';
+    el.btnArm.textContent = 'ARM';
+    el.btnArm.classList.remove('engaged');
+    el.btnArm.disabled = false;
+    el.btnTakeoff.disabled = true;
+    el.btnLand.disabled = true;
+    el.btnFault.disabled = true;
+    el.failureSelect.disabled = true;
+    el.failureSelect.value = 'random';
+
+    activateChip('chip-mavros');
+    activateChip('chip-state');
+    setPhase('idle');
+    log('<span class="dim">— system reset — standing by for operator command —</span>');
+  }
+
+  el.btnReset.addEventListener('click', resetSimulation);
+  el.btnCrashAck.addEventListener('click', resetSimulation);
+
+  el.btnKiosk.addEventListener('click', ()=>{
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen();
+    }
+  });
+  document.addEventListener('fullscreenchange', ()=>{
+    const isFull = !!document.fullscreenElement;
+    document.body.classList.toggle('kiosk', isFull);
+    el.btnKiosk.textContent = isFull ? '⛶ EXIT KIOSK' : '⛶ KIOSK';
+  });
+
+  /* ============================================================
+     HUD + METERS
+  ============================================================ */
+  function updateHud(){
+    el.hudAlt.textContent = state.altitude.toFixed(2) + ' m';
+    el.hudVspd.textContent = (state.vspeed>=0?'+':'') + state.vspeed.toFixed(2) + ' m/s';
+    el.hudThr.textContent = Math.round(state.throttle*100) + '%';
+
+    el.mAlt.innerHTML = state.altitude.toFixed(1) + '<small>m</small>';
+    el.mAltBar.style.width = Math.min(100, (state.altitude/state.targetAlt)*100) + '%';
+
+    el.mThr.innerHTML = Math.round(state.throttle*100) + '<small>%</small>';
+    el.mThrBar.style.width = Math.round(state.throttle*100) + '%';
+
+    el.mRpm.textContent = Math.round(state.motorRpm);
+    el.mRpmBar.style.width = Math.min(100, (state.motorRpm/7300)*100) + '%';
+
+    const sElapsed = (performance.now() - state.startTime)/1000;
+    const h = String(Math.floor(sElapsed/3600)).padStart(2,'0');
+    const m = String(Math.floor((sElapsed%3600)/60)).padStart(2,'0');
+    const s = (sElapsed%60).toFixed(1).padStart(4,'0');
+    el.clock.textContent = `T+${h}:${m}:${s}`;
+  }
+
+  /* ============================================================
+     CANVAS SCENE — drone, ground, sky
+  ============================================================ */
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR;
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.parentElement.getBoundingClientRect();
+    W = rect.width; H = rect.height;
+    canvas.width = W*DPR; canvas.height = H*DPR;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function drawSky(){
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#050810');
+    grad.addColorStop(0.55, '#0a1a2a');
+    grad.addColorStop(1, '#123249');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    for(let i=0;i<40;i++){
+      const sx = (i*137.5) % W;
+      const sy = (i*67.3) % (H*0.5);
+      ctx.globalAlpha = 0.15 + 0.15*Math.sin(state.t*2+i);
+      ctx.fillRect(sx, sy, 1.4, 1.4);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const horizonY = () => H*0.66;
+
+  function drawGround(cx, hz, groundY){
+    const gGrad = ctx.createLinearGradient(0,hz,0,H);
+    gGrad.addColorStop(0, '#0d2233');
+    gGrad.addColorStop(1, '#04101a');
+    ctx.fillStyle = gGrad;
+    ctx.fillRect(0,hz,W,H-hz);
+
+    const PAD_Z = 6;
+    const K = (groundY - hz) * PAD_Z;
+    const LAT = 12;
+    const unitMeters = 2;
+
+    for(let z=3; z<=42; z++){
+      const y = hz + K/z;
+      if(y > H+2) continue;
+      const depthFrac = Math.min(1, (z-3)/24);
+      const alpha = 0.34*(1-depthFrac) + 0.05;
+      const halfW = 9*(y-hz)/LAT;
+      ctx.strokeStyle = `rgba(79,216,255,${alpha.toFixed(3)})`;
+      ctx.lineWidth = z===PAD_Z ? 1.6 : 1;
+      ctx.beginPath();
+      ctx.moveTo(cx-halfW, y);
+      ctx.lineTo(cx+halfW, y);
+      ctx.stroke();
+      if(z%6===0 && z>PAD_Z){
+        ctx.fillStyle = `rgba(79,216,255,${(alpha+0.25).toFixed(3)})`;
+        ctx.font = '10px JetBrains Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${(z-PAD_Z)*unitMeters}m`, cx+halfW+6, y+3);
+      }
+    }
+
+    const yNear = hz + K/3;
+    const yFar = hz + K/42;
+    for(let x=-9; x<=9; x++){
+      const xNear = cx + x*(yNear-hz)/LAT;
+      const xFar = cx + x*(yFar-hz)/LAT;
+      const depthFrac = Math.abs(x)/9;
+      ctx.strokeStyle = x===0 ? 'rgba(79,216,255,0.5)' : `rgba(79,216,255,${(0.22*(1-depthFrac)+0.05).toFixed(3)})`;
+      ctx.lineWidth = x===0 ? 1.4 : 1;
+      ctx.beginPath();
+      ctx.moveTo(xNear, yNear);
+      ctx.lineTo(xFar, yFar);
+      ctx.stroke();
+    }
+
+    const padHalf = 9*(groundY-hz)/LAT / 4.5;
+    ctx.save();
+    ctx.translate(cx, groundY);
+    ctx.scale(1, 0.34);
+    const glow = ctx.createRadialGradient(0,0,0,0,0,padHalf*2.2);
+    glow.addColorStop(0, 'rgba(79,216,255,0.10)');
+    glow.addColorStop(1, 'rgba(79,216,255,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0,0, padHalf*2.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(79,216,255,0.4)';
+    ctx.beginPath(); ctx.moveTo(0,hz); ctx.lineTo(W,hz); ctx.stroke();
+  }
+
+  function drawPad(cx, groundY){
+    ctx.save();
+    ctx.translate(cx, groundY);
+    ctx.scale(1, 0.34);
+    ctx.strokeStyle = 'rgba(79,216,255,0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0,0, 62, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(79,216,255,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0,0,40,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawShadow(cx, groundY, altPx, scale){
+    const spread = Math.max(0.18, 1 - altPx/ (H*0.4));
+    ctx.save();
+    ctx.translate(cx, groundY);
+    ctx.scale(1,0.32);
+    const grad = ctx.createRadialGradient(0,0,0,0,0,70*scale*spread);
+    grad.addColorStop(0,'rgba(0,0,0,0.55)');
+    grad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0,0, 70*scale*spread, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawProp(x, y, r, angle, rpm){
+    const blur = Math.min(1, rpm/6500);
+    ctx.save();
+    ctx.translate(x,y);
+    if(blur < 0.12){
+      ctx.rotate(angle);
+      ctx.strokeStyle = '#cfe3f0';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-r,0); ctx.lineTo(r,0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,-r*0.5); ctx.lineTo(0,r*0.5); ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(207,227,240,${0.10+blur*0.16})`;
+      ctx.ellipse(0,0, r, r*0.42, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(79,216,255,${0.25+blur*0.35})`;
+      ctx.lineWidth = 1;
+      for(let k=0;k<3;k++){
+        ctx.beginPath();
+        ctx.ellipse(0,0, r*(0.5+k*0.22), r*0.18*(0.5+k*0.22)*2.3, 0, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawDrone(cx, cy, scale, tiltDeg, rpm, armed){
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(tiltDeg*Math.PI/180);
+    ctx.scale(scale, scale);
+
+    const armLen = 54;
+    const armY = -6;
+
+    ctx.strokeStyle = '#3a4b5c';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sy])=>{
+      ctx.beginPath();
+      ctx.moveTo(0, armY);
+      ctx.lineTo(sx*armLen, armY + sy*30);
+      ctx.stroke();
+    });
+
+    const angle = state.t*(rpm/60)*Math.PI*2;
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sy])=>{
+      const mx = sx*armLen, my = armY + sy*30;
+      ctx.beginPath();
+      ctx.fillStyle = armed ? '#16324a' : '#20242c';
+      ctx.arc(mx,my,7,0,Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#4fd8ff44';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      drawProp(mx, my, 26, angle + (sx*sy>0?0:Math.PI/2), rpm);
+      ctx.beginPath();
+      ctx.fillStyle = armed ? '#ff5d5d' : '#3a4b5c';
+      ctx.arc(mx, my, 2.4, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    ctx.strokeStyle = '#3a4b5c';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-16, 10); ctx.lineTo(-24, 34);
+    ctx.moveTo(16, 10); ctx.lineTo(24, 34);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-30,34); ctx.lineTo(-18,34);
+    ctx.moveTo(18,34); ctx.lineTo(30,34);
+    ctx.stroke();
+
+    const bodyGrad = ctx.createLinearGradient(0,-20,0,14);
+    bodyGrad.addColorStop(0,'#2a3a4a');
+    bodyGrad.addColorStop(1,'#12202c');
+    ctx.fillStyle = bodyGrad;
+    roundRect(ctx, -20,-16, 40, 30, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#4fd8ff88';
+    ctx.lineWidth = 1.2;
+    roundRect(ctx, -20,-16, 40, 30, 7);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = armed ? (rpm>3500 ? '#3dffa0' : '#ffb020') : '#5f7c90';
+    ctx.arc(0,-2, 3, 0, Math.PI*2);
+    ctx.fill();
+    if(armed){
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.fillStyle = rpm>3500 ? '#3dffa0' : '#ffb020';
+      ctx.arc(0,-2, 7, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.beginPath();
+    ctx.fillStyle = '#0a1620';
+    ctx.arc(0, 16, 5, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function cagePoint(theta, phi, R, rotY, tiltX){
+    let x0 = R*Math.sin(theta)*Math.cos(phi);
+    let y0 = -R*Math.cos(theta);
+    let z0 = R*Math.sin(theta)*Math.sin(phi);
+    const x1 = x0*Math.cos(rotY) + z0*Math.sin(rotY);
+    const z1 = -x0*Math.sin(rotY) + z0*Math.cos(rotY);
+    const y1 = y0;
+    const y2 = y1*Math.cos(tiltX) - z1*Math.sin(tiltX);
+    const z2 = y1*Math.sin(tiltX) + z1*Math.cos(tiltX);
+    return {x:x1, y:y2, z:z2};
+  }
+
+  function drawCage(cx, cy, scale, rotY, armed){
+    const R = 84;
+    const tiltX = 0.52;
+    ctx.save();
+    ctx.translate(cx, cy - 4*scale);
+    ctx.scale(scale, scale);
+
+    const baseCol = armed ? '198,214,224' : '150,164,174';
+
+    const numLat = 6, latSteps = 30;
+    for(let i=1;i<numLat;i++){
+      const theta = Math.PI*i/numLat;
+      const thick = (i===Math.round(numLat/2)) ? 2.4 : 1.3;
+      let prev = null;
+      for(let s=0;s<=latSteps;s++){
+        const phi = (s/latSteps)*Math.PI*2;
+        const p = cagePoint(theta, phi, R, rotY, tiltX);
+        if(prev){
+          const depth = (p.z/R + 1)/2;
+          const alpha = 0.10 + 0.34*depth;
+          ctx.strokeStyle = `rgba(${baseCol},${alpha.toFixed(3)})`;
+          ctx.lineWidth = thick;
+          ctx.beginPath();
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        }
+        prev = p;
+      }
+    }
+
+    const numLong = 10, longSteps = 22;
+    for(let i=0;i<numLong;i++){
+      const phi = (i/numLong)*Math.PI*2;
+      let prev = null;
+      for(let s=0;s<=longSteps;s++){
+        const theta = (s/longSteps)*Math.PI;
+        const p = cagePoint(theta, phi, R, rotY, tiltX);
+        if(prev){
+          const depth = (p.z/R + 1)/2;
+          const alpha = 0.08 + 0.28*depth;
+          ctx.strokeStyle = `rgba(${baseCol},${alpha.toFixed(3)})`;
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(p.x, p.y);
+          ctx.stroke();
+        }
+        prev = p;
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function render(){
+    const hz = horizonY();
+    const cx = W/2;
+    const groundY = hz + (H-hz)*0.42;
+
+    drawSky();
+    drawGround(cx, hz, groundY);
+    drawPad(cx, groundY);
+
+    const maxAltPx = H*0.46;
+    const altFrac = Math.min(1, state.altitude / (state.targetAlt*1.05));
+    const altPx = maxAltPx * (1 - Math.pow(1-altFrac,1.6));
+    const droneY = groundY - altPx - 30;
+    const scale = 1.55 - Math.min(0.35, altPx/(H*1.4));
+
+    drawShadow(cx, groundY, altPx, scale);
+    const isLive = state.armed || ['spooling','ascending','hover','landing','failure','crashed'].includes(state.phase);
+    drawDrone(cx, droneY, scale, state.tilt, state.motorRpm, isLive);
+    drawCage(cx, droneY, scale, state.cageRot, isLive);
+
+    if((state.phase==='spooling' || (state.phase==='ascending' && state.altitude < 0.6))){
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = '#cfe3f0';
+      for(let i=0;i<10;i++){
+        const dx = cx + Math.sin(state.t*7+i)*40*(1+i*0.15);
+        const dy = groundY - (i*3 + (state.t*40)%20);
+        ctx.beginPath();
+        ctx.arc(dx, dy, 1.6, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if(state.phase === 'crashed'){
+      ctx.save();
+      for(let i=0;i<14;i++){
+        const seed = i*13.7;
+        const rise = (state.t*18 + seed*4) % 90;
+        const dx = cx + Math.sin(state.t*0.6 + seed)*(14 + rise*0.35);
+        const dy = groundY - rise;
+        const a = Math.max(0, 0.32 - rise/90*0.32);
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(150,150,150,${a.toFixed(3)})`;
+        ctx.arc(dx, dy, 4 + rise*0.08, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.beginPath();
+      const wgrad = ctx.createRadialGradient(cx,groundY,0,cx,groundY,60);
+      wgrad.addColorStop(0, `rgba(255,93,93,${0.18+0.1*Math.sin(state.t*6)})`);
+      wgrad.addColorStop(1, 'rgba(255,93,93,0)');
+      ctx.fillStyle = wgrad;
+      ctx.ellipse(cx, groundY, 60, 20, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  /* ============================================================
+     MAIN LOOP
+  ============================================================ */
+  let lastT = performance.now();
+  function loop(now){
+    const dt = Math.min(0.05, (now-lastT)/1000);
+    lastT = now;
+    state.t += dt;
+
+    // random chance of an in-flight mechanical failure (can also be forced
+    // any time via the SIMULATE FAILURE button)
+    if((state.phase === 'ascending' || state.phase === 'hover') && Math.random() < dt*0.004){
+      triggerFailure();
+    }
+
+    runController(dt);
+    world.step(1/120, dt, 10);
+    syncStateFromBody();
+
+    if(state.phase === 'ascending'){
+      if(Math.abs(state.targetAlt - state.altitude) < 0.15 && Math.abs(state.vspeed) < 0.3){
+        setPhase('hover');
+        logTopic('/takeoff_controller/status', 'state: <span class="val">HOLD</span> · reached target altitude');
+        log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> goal reached · switching to position hold');
+      }
+    } else if(state.phase === 'landing'){
+      if(state.altitude < 0.08 && Math.abs(state.vspeed) < 0.2){
+        setPhase('armed');
+        log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> touchdown confirmed · motors idle');
+        logTopic('/mavros/state', 'armed: <span class="val">true</span>  mode: <span class="val">GUIDED</span>  landed_state: <span class="val">ON_GROUND</span>');
+        el.btnTakeoff.disabled = false;
+        el.btnArm.disabled = false;
+      }
+    }
+
+    updateHud();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  bootSequence();
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
