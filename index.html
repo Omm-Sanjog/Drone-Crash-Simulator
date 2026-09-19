@@ -539,6 +539,21 @@
     filter:saturate(0.85) contrast(1.05);
     background:#000;
   }
+  #crash-card .timeline-title{
+    font-family:'Rajdhani',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;
+    color:var(--text-dim);margin:4px 0 8px;
+  }
+  #crash-card .timeline{
+    margin-bottom:16px;background:#000000;border:1px solid var(--line);border-radius:4px;
+    padding:4px 12px;
+  }
+  #crash-card .tl-row{
+    display:flex;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);
+  }
+  #crash-card .tl-row:last-child{border-bottom:none;}
+  #crash-card .tl-t{color:var(--cyan);flex:0 0 auto;font-weight:600;}
+  #crash-card .tl-label{color:var(--text);}
+  #crash-card .tl-empty{padding:8px 0;color:var(--text-dim);}
   #crash-card .row{display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--line);padding:7px 0;}
   #crash-card .row .k{color:var(--text-dim);letter-spacing:1px;}
   #crash-card .row .v{color:var(--text);font-weight:600;text-align:right;}
@@ -679,11 +694,14 @@
       <p class="meth-note">This quadratic drag force is computed from the airframe's real horizontal velocity every physics tick and applied directly opposing that velocity — it's a genuine force the rigid body must fly against, not a cosmetic number. It's small at hover (near-zero horizontal speed) and becomes meaningful during a tumble, a wind-gust failure, or free fall.</p>
 
       <h3>9. Autonomous post-crash recovery</h3>
-      <p class="meth-note">After a crash, the airframe doesn't just sit there — it self-rights and relaunches on its own, exactly like the rest of the simulation: with real applied torque, not a scripted flip animation.</p>
-      <div class="meth-formula">up_world = quaternion × (0,1,0)<br>angle_err = acos(up_world.y) &nbsp;&nbsp;(0 when upright)<br>axis = up_world × (0,1,0)<br>correction_torque = axis × K_p − angular_velocity × K_d<br>K_p = 3.4 N·m/rad &nbsp; K_d = 0.9 N·m/(rad/s)</div>
-      <p class="meth-note">The controller keeps driving this corrective torque every tick until the tilt error stays under 4° and angular velocity stays under 0.5 rad/s for a sustained 0.6s — only then is the airframe considered "settled," and only then does it hand off to the same ARM → TAKEOFF sequence a human operator would trigger manually. Every stage — angle error, angular velocity, and applied correction torque — streams live to the telemetry log panel (<code>/recovery/attitude</code>) so the reorientation is fully auditable, not a black box.</p>
+      <p class="meth-note">After a crash, the airframe doesn't just sit there — it self-rights and relaunches on its own, exactly like the rest of the simulation: with real applied torque, not a scripted flip animation. The report from the crash is captured immediately but held back; it only becomes available (📋 LAST REPORT, top bar) once this recovered flight lands safely.</p>
+      <div class="meth-formula">up_world = quaternion × (0,1,0)<br>angle_err = acos(up_world.y) &nbsp;&nbsp;(0 when upright)<br>axis = up_world × (0,1,0)<br>correction_torque = axis × K_p − angular_velocity × K_d<br>K_p = 2.4 N·m/rad &nbsp; K_d = 1.6 N·m/(rad/s)</div>
+      <p class="meth-note">The gains are deliberately damping-heavy (K_d well above K_p relative to the airframe's inertia) so the maneuver settles smoothly instead of overshooting and oscillating back and forth. The controller keeps driving this corrective torque every tick until the tilt error stays under 10° and angular velocity stays under 1.2 rad/s for a sustained 0.3s — a 5-second timeout forces a handoff regardless, so an unusually stubborn tumble can never hang the simulation. At that point physics stops driving the rotation and a short, <strong>eased 0.6s glide</strong> (a quaternion slerp with cubic ease-out) smoothly finishes leveling the airframe out and locks it, rather than teleporting instantly — asymptotically settling the last few degrees under real ground-contact friction can jitter indefinitely, so the torque-driven motion (genuinely real physics, from tumble to nearly-upright) hands off to this brief animated finish for a clean result without a visible snap. The cage (rendered from the body's real orientation while tumbling) eases to its locked angle over the same glide, instead of continuing to spin, and stays locked through the ARM → TAKEOFF sequence that follows — which also clears the failure-mode selector back to "random," so a fresh flight never inherits the scenario that caused the last crash. Every stage — angle error, angular velocity, and applied correction torque — streams live to the telemetry log panel (<code>/recovery/attitude</code>) so the reorientation is fully auditable, not a black box.</p>
 
-      <h3>10. What's real vs. simulated for flavor</h3>
+      <h3>10. The incident report's mission timeline</h3>
+      <p class="meth-note">Every phase transition for a flight — arm, takeoff, reaching hover, a triggered failure, the crash impact, recovery starting and locking in, the autonomous relaunch, and the final landing — is timestamped and recorded as it happens. The incident report doesn't just show the crash snapshot: it shows the whole story, from takeoff through failure, crash, stabilization, relaunch, and landing, in order. The timeline only clears on a fresh manual ARM from a full reset, so if a second failure happens before landing, both cycles appear in one continuous record.</p>
+
+      <h3>11. What's real vs. simulated for flavor</h3>
       <table class="meth-table">
         <tr><th>Physically simulated</th><td>Mass, gravity, thrust, motor-position torque, spin-reaction yaw torque, aerodynamic drag, PID response, self-righting recovery torque, collision detection, impact velocity, attitude at impact</td></tr>
         <tr><th>Estimated (stated formula)</th><td>Impact G-force, moment of inertia (point-mass model)</td></tr>
@@ -691,7 +709,7 @@
         <tr><th>Not present at all</th><td>A real flight-controller install, real network traffic, a real drone</td></tr>
       </table>
 
-      <h3>11. The telemetry log panel</h3>
+      <h3>12. The telemetry log panel</h3>
       <p class="meth-note">The log panel is styled after real flight-controller/ground-control conventions (topic and node names you'd recognize from an actual system) for authenticity, but it runs entirely client-side in JavaScript — there's no real controller process, no network socket, and no external connection behind it. Where a logged value maps to something the simulation actually tracks (altitude, vertical speed, thrust, torque, recovery angle error), it's the real number; everything else is generated narrative flavor.</p>
 
     </div>
@@ -708,6 +726,7 @@
   </div>
   <div class="right">
     <div id="clock">T+00:00:00.0</div>
+    <button class="btn home-btn" id="btnViewReport" disabled>📋 LAST REPORT</button>
     <button class="btn home-btn" id="btnHome">← HOME</button>
     <button class="btn kiosk-btn" id="btnKiosk">⛶ KIOSK</button>
   </div>
@@ -788,6 +807,8 @@
     </header>
     <div class="body">
       <img id="crCrashImg" alt="Crash frame capture">
+      <div class="timeline-title">MISSION TIMELINE — TAKEOFF TO LANDING</div>
+      <div class="timeline" id="crTimeline"></div>
       <div class="row"><span class="k">FAILURE MODE</span><span class="v" id="crMode">—</span></div>
       <div class="row"><span class="k">TIME OF FAILURE</span><span class="v" id="crTime">—</span></div>
       <div class="row"><span class="k">FLIGHT TIME AT FAILURE</span><span class="v" id="crFlightTime">—</span></div>
@@ -808,11 +829,11 @@
       <div class="blackbox" id="crBlackbox">—</div>
       <div class="rec" id="crRec">—</div>
       <div class="note">Impact velocity, freefall duration, and attitude at impact are computed by a real cannon.js rigid-body simulation. G-force is estimated from impact velocity using Δv / (g × assumed stopping time of 50ms) — a standard simplified impact-mechanics approximation, not a measured value. Battery, wind, RF-link and GPS figures are simulated telemetry flavor, not physically modeled.</div>
-      <div class="auto-note" id="crAutoNote">Autonomous reorientation begins automatically in a few seconds — watch the telemetry log panel. Click Acknowledge &amp; Reset to cancel and reset manually instead.</div>
+      <div class="auto-note" id="crAutoNote">This is the report from the last crash. The airframe has already self-righted and relaunched automatically — closing this doesn't affect the current flight.</div>
     </div>
     <footer>
       <button class="btn land" id="btnDownloadReport">⬇ DOWNLOAD REPORT (PNG)</button>
-      <button class="btn reset" id="btnCrashAck">ACKNOWLEDGE &amp; RESET</button>
+      <button class="btn reset" id="btnCrashAck">CLOSE</button>
     </footer>
   </div>
 </div>
@@ -848,7 +869,6 @@
     tilt: 0,                 // real bank angle (deg) derived from body orientation, drives the 2D sprite rotation
     attitudeRoll: 0,          // deg, captured for the incident report
     attitudePitch: 0,
-    cageRot: 0.55,             // fixed viewing angle of the protective cage sphere (stationary)
     crashed: false,
     failureMode: null,
     failureStartAlt: 0,
@@ -857,11 +877,33 @@
 
     // autonomous recovery
     recoverStableSince: null,
+    recoveryStartTime: null,
+    recoveryCompleting: false,
     recoveryAngleErrDeg: 0,
     recoveryOmega: 0,
     recoveryTorqueMag: 0,
-    autoRecoverTimer: null,
+    crashRecoveryDelayTimer: null,
     recoveryFollowupTimer: null,
+    reportPending: false,
+    reportAvailable: false,
+
+    // smooth lock-in glide (torque hands off to a short eased animation
+    // instead of teleporting) — see runLockAnimation()
+    lockAnimDone: false,
+    lockStartTime: 0,
+    lockFromQuat: null,
+    lockFromCageSpin: 0.55,
+
+    // real-time cage spin angle, driven by the physics body's actual
+    // orientation while tumbling (failure/crashed/recovering) — locked to
+    // a fixed angle otherwise so it doesn't drift during normal flight.
+    // See syncStateFromBody() and completeRecovery().
+    cageSpin: 0.55,
+
+    // full-flight mission timeline for the incident report: every phase
+    // transition from takeoff through failure, crash, recovery, relaunch,
+    // and landing, with timestamps — see logMission()
+    missionLog: [],
 
     // derived physics telemetry (recomputed every tick, for HUD + log)
     lastThrustN: 0,
@@ -895,6 +937,7 @@
     btnKiosk: document.getElementById('btnKiosk'),
     btnCrashAck: document.getElementById('btnCrashAck'),
     btnDownloadReport: document.getElementById('btnDownloadReport'),
+    btnViewReport: document.getElementById('btnViewReport'),
     crashOverlay: document.getElementById('crash-overlay'),
   };
 
@@ -952,6 +995,12 @@
 
   function logTopic(topic, body){
     log(`<span class="topic">${topic}</span> ${body}`);
+  }
+
+  // Records one entry in the full-flight mission timeline (takeoff -> ...
+  // -> landing) shown in the incident report once it becomes available.
+  function logMission(text){
+    state.missionLog.push({ t: state.t, clock: el.clock.textContent, text });
   }
 
   function activateChip(id){
@@ -1070,11 +1119,15 @@
   const FRONTAL_AREA = 0.045;        // m^2, approximate horizontal cross-section
 
   // ---- autonomous recovery controller gains ----
-  const RECOVER_KP = 3.4;            // N·m per radian of tilt error
-  const RECOVER_KD = 0.9;            // N·m per rad/s of angular velocity (damping)
-  const RECOVER_DONE_ANGLE = 4 * Math.PI/180;  // rad (~4°) — considered "upright"
-  const RECOVER_DONE_OMEGA = 0.5;    // rad/s — considered "settled"
-  const RECOVER_STABLE_TIME = 0.6;   // s the airframe must hold that state before relaunch
+  // Heavily damped on purpose (Kd >> Kp relative to the airframe's real,
+  // solver-computed inertia) so the self-righting maneuver settles smoothly
+  // instead of overshooting and oscillating back and forth in the cage.
+  const RECOVER_KP = 2.4;            // N·m per radian of tilt error
+  const RECOVER_KD = 1.6;            // N·m per rad/s of angular velocity (damping)
+  const RECOVER_DONE_ANGLE = 10 * Math.PI/180; // rad (~10°) — "close enough," then hard-locked level
+  const RECOVER_DONE_OMEGA = 1.2;    // rad/s — considered "settled" (ground-contact jitter tolerant)
+  const RECOVER_STABLE_TIME = 0.3;   // s the airframe must hold that state before the lock-in
+  const RECOVER_MAX_TIME = 5.0;      // s safety fallback — proceed anyway rather than hang
 
   const world = new CANNON.World();
   world.gravity.set(0, -9.81, 0);
@@ -1142,6 +1195,7 @@
     state.attitudePitch = Math.round(pitch*57.2958);
     state.crashed = true;
     setPhase('crashed');
+    logMission(`Impact detected — crash confirmed at ${impactVel.toFixed(2)} m/s`);
     finalizeCrash(impactVel);
   });
 
@@ -1291,6 +1345,7 @@
      normal auto re-arm + takeoff sequence.
   ============================================================ */
   function runRecoveryController(dt){
+    if(state.recoveryCompleting) return; // already handed off — hold the locked state, apply no more correction
     const upWorld = droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0));
     const dot = Math.max(-1, Math.min(1, upWorld.y));
     const angleErr = Math.acos(dot); // 0 rad when perfectly upright
@@ -1318,9 +1373,16 @@
       if(state.recoverStableSince === null) state.recoverStableSince = state.t;
       if(state.t - state.recoverStableSince >= RECOVER_STABLE_TIME){
         completeRecovery();
+        return;
       }
     } else {
       state.recoverStableSince = null;
+    }
+
+    // safety fallback — never hang in an endless correction loop
+    if(state.recoveryStartTime !== null && (state.t - state.recoveryStartTime) > RECOVER_MAX_TIME){
+      log('<span class="warn">[WARN]</span> <span class="node">/recovery_manager</span> reorientation timeout — proceeding with best-effort attitude');
+      completeRecovery();
     }
   }
 
@@ -1343,6 +1405,9 @@
     crashHandled = false;
     state.crashed = false;
     state.recoverStableSince = null;
+    state.recoveryStartTime = state.t;
+    state.recoveryCompleting = false;
+    state.lockAnimDone = false;
     lastMix = { FL:0, FR:0, RL:0, RR:0 };
     el.btnArm.disabled = true;
     el.btnTakeoff.disabled = true;
@@ -1353,21 +1418,101 @@
     log('<span class="warn">[WARN]</span> <span class="node">/recovery_manager</span> post-impact self-check — initiating autonomous reorientation');
     logTopic('/diagnostics', 'level: <span class="val">1 (WARN)</span> name: "airframe/recovery" message: "autonomous reorientation engaged"');
     logTopic('/recovery/attitude', `initial angle_err: <span class="val">${(Math.acos(Math.max(-1,Math.min(1,droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0)).y)))*57.2958).toFixed(1)}°</span>`);
+    logMission('Autonomous recovery initiated — self-righting airframe');
     startRecoveryStream();
   }
 
+  // Torque brings the airframe close to upright, then this hands off to a
+  // short, eased kinematic glide (see runLockAnimation) that smoothly
+  // finishes leveling it out — rather than teleporting instantly, which
+  // reads as an artificial snap. This is a deliberate design choice, not a
+  // claim that the whole recovery is torque-only: asymptotically settling
+  // under real ground-contact friction can jitter indefinitely, so once the
+  // torque controller gets it close, physics stops driving the rotation and
+  // a smooth animation finishes the job. The cage (rendered from real
+  // orientation while tumbling) eases to its locked angle at the same time,
+  // instead of snapping or continuing to spin.
   function completeRecovery(){
-    if(state.phase !== 'recovering') return;
+    if(state.phase !== 'recovering' || state.recoveryCompleting) return;
+    state.recoveryCompleting = true;
     stopRecoveryStream();
-    log(`<span class="ok">[INFO]</span> <span class="node">/recovery_manager</span> airframe reoriented — roll ${state.attitudeRoll}° pitch ${state.attitudePitch}° · settle time confirmed`);
+
+    state.lockFromQuat = { x: droneBody.quaternion.x, y: droneBody.quaternion.y, z: droneBody.quaternion.z, w: droneBody.quaternion.w };
+    state.lockFromCageSpin = state.cageSpin;
+    state.lockStartTime = state.t;
+    state.lockAnimDone = false;
+    droneBody.angularVelocity.set(0, 0, 0);
+    droneBody.torque.set(0, 0, 0);
+    droneBody.velocity.x *= 0.3;
+    droneBody.velocity.z *= 0.3;
+    if(droneBody.velocity.y < 0) droneBody.velocity.y *= 0.3;
+
+    log('<span class="ok">[INFO]</span> <span class="node">/recovery_manager</span> reorientation converged — easing to level lock');
     logTopic('/cage_monitor', 'structural self-check: <span class="ok">PASS</span> — cage integrity sufficient for relaunch');
+    logMission('Airframe reoriented and locked upright — preparing to relaunch');
     state.failureMode = null;
-    state.recoveryFollowupTimer = setTimeout(()=>{ autoReArm(); }, 700);
+    state.recoveryStartTime = null;
+  }
+
+  // Slerp between two plain {x,y,z,w} quaternions, t in [0,1]. cannon.js
+  // 0.6.2 has no built-in slerp, so this is a standard implementation
+  // (shortest-path, with a linear fallback when the quaternions are
+  // nearly identical to avoid a division by ~0).
+  function slerpQuat(qa, qb, t){
+    let x0=qa.x, y0=qa.y, z0=qa.z, w0=qa.w;
+    let x1=qb.x, y1=qb.y, z1=qb.z, w1=qb.w;
+    let dot = x0*x1 + y0*y1 + z0*z1 + w0*w1;
+    if(dot < 0){ x1=-x1; y1=-y1; z1=-z1; w1=-w1; dot=-dot; }
+    if(dot > 0.9995){
+      const x=x0+(x1-x0)*t, y=y0+(y1-y0)*t, z=z0+(z1-z0)*t, w=w0+(w1-w0)*t;
+      const len = Math.sqrt(x*x+y*y+z*z+w*w) || 1;
+      return { x:x/len, y:y/len, z:z/len, w:w/len };
+    }
+    const theta0 = Math.acos(dot);
+    const theta = theta0*t;
+    const sinTheta0 = Math.sin(theta0);
+    const s1 = Math.sin(theta)/sinTheta0;
+    const s0 = Math.cos(theta) - dot*s1;
+    return { x:s0*x0+s1*x1, y:s0*y0+s1*y1, z:s0*z0+s1*z1, w:s0*w0+s1*w1 };
+  }
+
+  const LOCK_ANIM_DURATION = 0.6; // s — eased glide from converged attitude to perfectly level
+  function easeOutCubic(x){ return 1 - Math.pow(1-x, 3); }
+
+  // Runs every frame during the post-recovery lock-in: eases the airframe's
+  // orientation and the cage's rendered angle from wherever the torque
+  // controller left them to a perfectly level, fixed lock — smoothly,
+  // instead of the instantaneous snap this replaced.
+  function runLockAnimation(){
+    if(state.lockAnimDone) return;
+    const elapsed = state.t - state.lockStartTime;
+    const frac = Math.min(1, elapsed / LOCK_ANIM_DURATION);
+    const eased = easeOutCubic(frac);
+
+    const q = slerpQuat(state.lockFromQuat, {x:0,y:0,z:0,w:1}, eased);
+    droneBody.quaternion.set(q.x, q.y, q.z, q.w);
+    droneBody.angularVelocity.set(0, 0, 0);
+    droneBody.velocity.x *= 0.9;
+    droneBody.velocity.z *= 0.9;
+
+    let diff = 0.55 - state.lockFromCageSpin;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // shortest angular path
+    state.cageSpin = state.lockFromCageSpin + diff*eased;
+
+    if(frac >= 1){
+      state.lockAnimDone = true;
+      state.tilt = 0;
+      state.attitudeRoll = 0;
+      state.attitudePitch = 0;
+      state.cageSpin = 0.55;
+      state.recoveryFollowupTimer = setTimeout(()=>{ autoReArm(); }, 400);
+    }
   }
 
   function autoReArm(){
     if(state.phase !== 'recovering') return;
     logTopic('/takeoff_controller', 'autonomous relaunch authorized — no operator input required');
+    logMission('Autonomous relaunch authorized');
     performArmSequence(()=>{ startTakeoffSequence(); });
   }
 
@@ -1381,6 +1526,16 @@
     const upWorld = droneBody.quaternion.vmult(new CANNON.Vec3(0,1,0));
     const bankMag = Math.acos(Math.max(-1, Math.min(1, upWorld.y))) * 57.2958;
     state.tilt = (upWorld.x < 0 ? -1 : 1) * bankMag;
+    // the cage is the drone's real collision hull, so while the airframe
+    // is actually tumbling (failure / crashed / recovering) it visually
+    // rolls with the body's ACTUAL orientation instead of a fixed angle.
+    // Once recovery locks the airframe level (completeRecovery), or during
+    // any normal flight phase, the cage holds its last angle rather than
+    // continuing to drift — it doesn't spin during ordinary operation.
+    if(['failure','crashed','recovering'].includes(state.phase) && !state.recoveryCompleting){
+      const localX = droneBody.quaternion.vmult(new CANNON.Vec3(1,0,0));
+      state.cageSpin = Math.atan2(localX.z, localX.x) + 0.55;
+    }
     const avgMix = (lastMix.FL+lastMix.FR+lastMix.RL+lastMix.RR)/4;
     const targetRpm = avgMix>0 ? 900 + avgMix*6400 : 0;
     state.motorRpm += (targetRpm - state.motorRpm) * 0.25;
@@ -1431,6 +1586,7 @@
       el.btnArm.classList.add('engaged');
       el.btnArm.textContent = 'DISARM';
       el.btnArm.disabled = false;
+      logMission('Airframe armed — pre-arm checks passed');
       if(typeof onArmed === 'function') onArmed();
     }, 1300);
   }
@@ -1443,6 +1599,7 @@
     setPhase('spooling');
     log('<span class="dim">operator@gcs:~$</span> rostopic pub <span class="field">/takeoff_controller/goal</span> <span class="field">altitude: 4.2</span>');
     log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> executing TAKEOFF behavior · target alt <span class="val">4.2m</span>');
+    logMission('Takeoff command issued — climbing to target altitude');
     startPoseStream();
     startPhysicsTelemetryStream();
     setTimeout(()=>{
@@ -1451,11 +1608,20 @@
       el.btnLand.disabled = false;
       el.btnFault.disabled = false;
       el.failureSelect.disabled = false;
+      // fresh takeoff, fresh slate — no failure scenario carried over from
+      // a previous flight (or left selected from before a crash)
+      state.failureMode = null;
+      state.crashed = false;
+      state.strikeApplied = false;
+      el.failureSelect.value = 'random';
+      logTopic('/diagnostics', 'level: <span class="val">0 (OK)</span> name: "airframe/failure_state" message: "cleared — no active failure scenario"');
     }, 900);
   }
 
   el.btnArm.addEventListener('click', ()=>{
     if(state.armed) return;
+    state.missionLog = []; // a fresh manual ARM starts a new flight's timeline
+    logMission('Operator armed the airframe');
     performArmSequence();
   });
 
@@ -1488,6 +1654,7 @@
     setPhase('landing');
     log('<span class="dim">operator@gcs:~$</span> rostopic pub <span class="field">/takeoff_controller/goal</span> <span class="field">altitude: 0.0</span>');
     log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> executing LAND behavior');
+    logMission('Land command issued — descending');
   });
 
   // populate the failure-mode picker from FAIL_MODES
@@ -1521,6 +1688,7 @@
     logTopic('/diagnostics', `level: <span class="val">2 (ERROR)</span> name: <span class="val">"${mode.diag}"</span> message: "<span class="val">${mode.msg}</span>"`);
     logTopic('/mavros/state', 'armed: <span class="val">true</span>  mode: <span class="val">EMERGENCY</span>');
     log('<span class="warn">[WARN]</span> <span class="node">/takeoff_controller</span> control loop watchdog timeout — recovery unavailable');
+    logMission(`Mechanical failure triggered — ${mode.name}`);
   }
 
   el.btnFault.addEventListener('click', ()=>triggerFailure(true));
@@ -1589,14 +1757,32 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       }catch(e){ /* canvas capture unavailable — report still shows without it */ }
     }, 220);
 
-    el.crashOverlay.classList.add('show');
-
-    // Autonomous recovery: unless the operator acknowledges first, the
-    // report auto-dismisses and the airframe begins reorienting on its own.
-    state.autoRecoverTimer = setTimeout(()=>{
-      el.crashOverlay.classList.remove('show');
+    // The report is captured and held, but not shown — the airframe goes
+    // straight into autonomous recovery. It becomes available to view/
+    // download once this flight safely lands (see the loop()'s landing
+    // check). A short beat lets the crash register visually first.
+    state.reportPending = true;
+    state.reportAvailable = true;
+    log('<span class="dim">— incident report captured, held for review after next safe landing —</span>');
+    state.crashRecoveryDelayTimer = setTimeout(()=>{
       beginAutoRecovery();
-    }, 4500);
+    }, 1200);
+  }
+
+  // Renders the full-flight mission timeline (state.missionLog) into the
+  // incident report. Called once the recovered flight lands safely, so the
+  // report tells the whole story — takeoff, failure, crash, stabilize,
+  // relaunch, and landing — not just the moment of impact.
+  function renderMissionTimeline(){
+    const wrap = document.getElementById('crTimeline');
+    if(!wrap) return;
+    if(!state.missionLog.length){
+      wrap.innerHTML = '<div class="tl-empty">No timeline recorded.</div>';
+      return;
+    }
+    wrap.innerHTML = state.missionLog.map(ev=>
+      `<div class="tl-row"><span class="tl-t">${ev.clock}</span><span class="tl-label">${ev.text}</span></div>`
+    ).join('');
   }
 
   /* ============================================================
@@ -1647,10 +1833,13 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     const hasImg = imgEl && imgEl.complete && imgEl.naturalWidth > 0;
     const imgAspect = hasImg ? (imgEl.naturalHeight / imgEl.naturalWidth) : 0.5625;
     const imgH = Math.round(contentW * imgAspect);
+    const timelineRowH = 20;
+    const timeline = state.missionLog.slice();
 
     const rowH = 28;
     let H = 100;                        // header
     H += (hasImg ? imgH + 24 : 10);     // crash frame
+    H += 26 + Math.max(1, timeline.length) * timelineRowH + 20; // mission timeline
     H += rows.length * rowH + 16;       // data rows
     H += 30 + blackboxLines.length*17 + 18; // black box
     H += recLines.length*19 + 22;       // recommendation
@@ -1688,6 +1877,26 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
       }catch(e){ /* tainted or unavailable — skip the image, report still exports */ }
       cy += imgH + 24;
     }
+
+    ctx.fillStyle = '#ede6dc';
+    ctx.font = '700 12px Rajdhani, sans-serif';
+    ctx.fillText('MISSION TIMELINE — TAKEOFF TO LANDING', M, cy);
+    cy += 22;
+    ctx.font = '11.5px "JetBrains Mono", monospace';
+    if(timeline.length){
+      timeline.forEach(ev=>{
+        ctx.fillStyle = '#e8905c';
+        ctx.fillText(ev.clock, M, cy);
+        ctx.fillStyle = '#ede6dc';
+        ctx.fillText(ev.text, M + 88, cy);
+        cy += timelineRowH;
+      });
+    } else {
+      ctx.fillStyle = '#8a7d6f';
+      ctx.fillText('No timeline recorded.', M, cy);
+      cy += timelineRowH;
+    }
+    cy += 16;
 
     ctx.font = '12.5px "JetBrains Mono", monospace';
     rows.forEach(r=>{
@@ -1733,11 +1942,18 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
   function resetSimulation(){
     // cancel any pending autonomous recovery / relaunch so a manual reset
     // always wins, whatever stage the auto sequence was in
-    clearTimeout(state.autoRecoverTimer); state.autoRecoverTimer = null;
+    clearTimeout(state.crashRecoveryDelayTimer); state.crashRecoveryDelayTimer = null;
     clearTimeout(state.recoveryFollowupTimer); state.recoveryFollowupTimer = null;
     stopRecoveryStream();
     stopPhysicsTelemetryStream();
     state.recoverStableSince = null;
+    state.recoveryStartTime = null;
+    state.recoveryCompleting = false;
+    state.lockAnimDone = false;
+    state.reportPending = false;
+    state.reportAvailable = false;
+    state.missionLog = [];
+    state.cageSpin = 0.55;
 
     state.phase = 'idle';
     state.armed = false;
@@ -1754,6 +1970,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     resetPhysicsBody();
 
     el.crashOverlay.classList.remove('show');
+    el.btnViewReport.disabled = true;
     el.hudArmed.textContent = 'FALSE';
     el.hudArmed.classList.remove('armed');
     el.hudMode.textContent = 'STABILIZE';
@@ -1773,8 +1990,9 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
   }
 
   el.btnReset.addEventListener('click', resetSimulation);
-  el.btnCrashAck.addEventListener('click', resetSimulation);
+  el.btnCrashAck.addEventListener('click', ()=> el.crashOverlay.classList.remove('show'));
   el.btnDownloadReport.addEventListener('click', downloadCrashReportPNG);
+  el.btnViewReport.addEventListener('click', ()=> el.crashOverlay.classList.add('show'));
 
   el.btnKiosk.addEventListener('click', ()=>{
     if(!document.fullscreenElement){
@@ -2061,9 +2279,12 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     return {x:x1, y:y2, z:z2};
   }
 
-  function drawCage(cx, cy, scale, rotY, armed){
+  function drawCage(cx, cy, scale, rotY, armed, bankDeg){
     const R = 84;
-    const tiltX = 0.52;
+    // base perspective tilt, plus a real contribution from the body's
+    // actual bank angle so the cage visibly tumbles during a crash/
+    // recovery instead of always sitting at the same fixed angle
+    const tiltX = 0.52 + Math.max(-0.9, Math.min(0.9, ((bankDeg||0)*Math.PI/180)*0.5));
     ctx.save();
     ctx.translate(cx, cy - 4*scale);
     ctx.scale(scale, scale);
@@ -2144,7 +2365,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     drawShadow(cx, groundY, altPx, scale);
     const isLive = state.armed || ['spooling','ascending','hover','landing','failure','crashed','recovering'].includes(state.phase);
     drawDrone(cx, droneY, scale, state.tilt, state.motorRpm, isLive);
-    drawCage(cx, droneY, scale, state.cageRot, isLive);
+    drawCage(cx, droneY, scale, state.cageSpin, isLive, state.tilt);
 
     if((state.phase==='spooling' || (state.phase==='ascending' && state.altitude < 0.6))){
       ctx.save();
@@ -2200,7 +2421,11 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     }
 
     if(state.phase === 'recovering'){
-      runRecoveryController(dt);
+      if(state.recoveryCompleting){
+        runLockAnimation();
+      } else {
+        runRecoveryController(dt);
+      }
     } else {
       runController(dt);
     }
@@ -2213,14 +2438,23 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
         setPhase('hover');
         logTopic('/takeoff_controller/status', 'state: <span class="val">HOLD</span> · reached target altitude');
         log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> goal reached · switching to position hold');
+        logMission('Reached target altitude — holding hover');
       }
     } else if(state.phase === 'landing'){
       if(state.altitude < 0.08 && Math.abs(state.vspeed) < 0.2){
         setPhase('armed');
         log('<span class="ok">[INFO]</span> <span class="node">/takeoff_controller</span> touchdown confirmed · motors idle');
         logTopic('/mavros/state', 'armed: <span class="val">true</span>  mode: <span class="val">GUIDED</span>  landed_state: <span class="val">ON_GROUND</span>');
+        logMission('Touchdown confirmed — motors idle');
         el.btnTakeoff.disabled = false;
         el.btnArm.disabled = false;
+
+        if(state.reportPending){
+          state.reportPending = false;
+          renderMissionTimeline();
+          el.btnViewReport.disabled = false;
+          log('<span class="ok">[INFO]</span> <span class="node">/recovery_manager</span> safe landing confirmed — incident report from the previous crash is now available (📋 LAST REPORT)');
+        }
       }
     }
 
