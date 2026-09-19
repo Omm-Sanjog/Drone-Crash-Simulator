@@ -6,7 +6,7 @@ failure and crashes under an actual rigid-body physics simulation. Wrapped aroun
 it is a simulated ROS 1 (Noetic-style) ground-control console, styled like a real
 flight-test HUD.
 
-Live demo: *add your Vercel URL here once deployed*
+Live demo: 
 
 ---
 
