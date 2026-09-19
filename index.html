@@ -364,7 +364,7 @@
     letter-spacing:2px;
     color:var(--text-dim);
     border-bottom:1px solid var(--line);
-    background:var(--panel-2);
+    background:#000000;
     display:flex;align-items:center;justify-content:space-between;
   }
   .console-title span.live-dot{
@@ -378,13 +378,13 @@
     flex:1;
     display:flex;
     flex-direction:column;
-    background:var(--panel);
+    background:#000000;
     min-width:340px;
   }
   #console-tabs{
     display:flex;
     border-bottom:1px solid var(--line);
-    background:var(--panel-2);
+    background:#000000;
   }
   #console-tabs .tab{
     padding:9px 14px;
@@ -394,7 +394,7 @@
     border-right:1px solid var(--line);
     font-family:'JetBrains Mono',monospace;
   }
-  #console-tabs .tab.active{color:var(--green);background:var(--panel);}
+  #console-tabs .tab.active{color:var(--green);background:#000000;}
 
   #console{
     flex:1;
@@ -425,7 +425,7 @@
     gap:6px;
     padding:10px 14px;
     border-top:1px solid var(--line);
-    background:var(--panel-2);
+    background:#000000;
   }
   .node-chip{
     font-family:'JetBrains Mono',monospace;
@@ -548,7 +548,7 @@
     color:var(--text-dim);white-space:pre-wrap;
   }
   #crash-card .rec{margin-top:12px;color:var(--amber);font-size:12px;line-height:1.6;}
-  #crash-card footer{padding:14px 20px;border-top:1px solid var(--line);text-align:right;}
+  #crash-card footer{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
   #crash-card .note{margin-top:12px;color:var(--text-dim);font-size:10.5px;line-height:1.6;border-top:1px dashed var(--line);padding-top:10px;}
 </style>
 </head>
@@ -788,7 +788,10 @@
       <div class="rec" id="crRec">—</div>
       <div class="note">Impact velocity, freefall duration, and attitude at impact are computed by a real cannon.js rigid-body simulation. G-force is estimated from impact velocity using Δv / (g × assumed stopping time of 50ms) — a standard simplified impact-mechanics approximation, not a measured value. Battery, wind, RF-link and GPS figures are simulated telemetry flavor, not physically modeled.</div>
     </div>
-    <footer><button class="btn reset" id="btnCrashAck">ACKNOWLEDGE &amp; RESET</button></footer>
+    <footer>
+      <button class="btn land" id="btnDownloadReport">⬇ DOWNLOAD REPORT (PNG)</button>
+      <button class="btn reset" id="btnCrashAck">ACKNOWLEDGE &amp; RESET</button>
+    </footer>
   </div>
 </div>
 
@@ -854,6 +857,7 @@
     btnReset: document.getElementById('btnReset'),
     btnKiosk: document.getElementById('btnKiosk'),
     btnCrashAck: document.getElementById('btnCrashAck'),
+    btnDownloadReport: document.getElementById('btnDownloadReport'),
     crashOverlay: document.getElementById('crash-overlay'),
   };
 
@@ -1366,6 +1370,137 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
     el.crashOverlay.classList.add('show');
   }
 
+  /* ============================================================
+     INCIDENT REPORT -> PNG EXPORT
+     Redraws the current incident report (crash frame + every data
+     row + black box + recommendation) onto an offscreen canvas so
+     it can be saved as a single shareable image, independent of
+     whatever's on screen.
+  ============================================================ */
+  function wrapCanvasText(ctx, text, maxWidth, font){
+    ctx.font = font;
+    const words = String(text).split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(w=>{
+      const test = line ? line + ' ' + w : w;
+      if(ctx.measureText(test).width > maxWidth && line){
+        lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    });
+    if(line) lines.push(line);
+    return lines;
+  }
+
+  function downloadCrashReportPNG(){
+    const rows = Array.from(document.querySelectorAll('#crash-card .body > .row')).map(r=>({
+      k: r.querySelector('.k').textContent,
+      v: r.querySelector('.v').textContent,
+    }));
+    const blackboxLines = document.getElementById('crBlackbox').textContent.split('\n');
+    const recText = document.getElementById('crRec').textContent;
+    const noteText = document.querySelector('#crash-card .note').textContent;
+    const incId = document.getElementById('crIncidentId').textContent;
+    const modeText = document.getElementById('crMode').textContent;
+    const imgEl = document.getElementById('crCrashImg');
+
+    const W = 860;
+    const M = 36;
+    const contentW = W - M*2;
+
+    const measure = document.createElement('canvas').getContext('2d');
+    const recLines = wrapCanvasText(measure, recText, contentW, '13px "JetBrains Mono", monospace');
+    const noteLines = wrapCanvasText(measure, noteText, contentW, '11px "JetBrains Mono", monospace');
+
+    const hasImg = imgEl && imgEl.complete && imgEl.naturalWidth > 0;
+    const imgAspect = hasImg ? (imgEl.naturalHeight / imgEl.naturalWidth) : 0.5625;
+    const imgH = Math.round(contentW * imgAspect);
+
+    const rowH = 28;
+    let H = 100;                        // header
+    H += (hasImg ? imgH + 24 : 10);     // crash frame
+    H += rows.length * rowH + 16;       // data rows
+    H += 30 + blackboxLines.length*17 + 18; // black box
+    H += recLines.length*19 + 22;       // recommendation
+    H += noteLines.length*15 + 30;      // fine-print note
+    H += M;
+
+    const DPR = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = W*DPR; canvas.height = H*DPR;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(DPR, DPR);
+    ctx.textBaseline = 'top';
+
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#ff6b5d';
+    ctx.font = '700 20px Rajdhani, sans-serif';
+    ctx.fillText('INCIDENT REPORT', M, 30);
+    ctx.font = '12px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#8a7d6f';
+    ctx.textAlign = 'right';
+    ctx.fillText(incId, W-M, 32);
+    ctx.textAlign = 'left';
+    ctx.font = '13px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#ede6dc';
+    ctx.fillText(modeText, M, 58);
+
+    let cy = 96;
+    if(hasImg){
+      try{
+        ctx.drawImage(imgEl, M, cy, contentW, imgH);
+        ctx.strokeStyle = '#332821';
+        ctx.strokeRect(M, cy, contentW, imgH);
+      }catch(e){ /* tainted or unavailable — skip the image, report still exports */ }
+      cy += imgH + 24;
+    }
+
+    ctx.font = '12.5px "JetBrains Mono", monospace';
+    rows.forEach(r=>{
+      ctx.strokeStyle = '#332821';
+      ctx.beginPath();
+      ctx.moveTo(M, cy+rowH-6);
+      ctx.lineTo(W-M, cy+rowH-6);
+      ctx.stroke();
+      ctx.fillStyle = '#8a7d6f';
+      ctx.fillText(r.k, M, cy);
+      ctx.fillStyle = '#ede6dc';
+      ctx.textAlign = 'right';
+      ctx.fillText(r.v, W-M, cy);
+      ctx.textAlign = 'left';
+      cy += rowH;
+    });
+    cy += 10;
+
+    ctx.fillStyle = '#ede6dc';
+    ctx.font = '700 12px Rajdhani, sans-serif';
+    ctx.fillText('BLACK BOX — LAST TELEMETRY', M, cy);
+    cy += 22;
+    ctx.font = '11.5px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#8a7d6f';
+    blackboxLines.forEach(line=>{ ctx.fillText(line, M, cy); cy += 17; });
+    cy += 14;
+
+    ctx.fillStyle = '#ffb020';
+    ctx.font = '13px "JetBrains Mono", monospace';
+    recLines.forEach(line=>{ ctx.fillText(line, M, cy); cy += 19; });
+    cy += 12;
+
+    ctx.fillStyle = '#5f574d';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    noteLines.forEach(line=>{ ctx.fillText(line, M, cy); cy += 15; });
+
+    const link = document.createElement('a');
+    link.download = `${incId}_incident_report.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
   function resetSimulation(){
     state.phase = 'idle';
     state.armed = false;
@@ -1402,6 +1537,7 @@ diagnostic: ${fm.diag} -> ${fm.msg}`;
 
   el.btnReset.addEventListener('click', resetSimulation);
   el.btnCrashAck.addEventListener('click', resetSimulation);
+  el.btnDownloadReport.addEventListener('click', downloadCrashReportPNG);
 
   el.btnKiosk.addEventListener('click', ()=>{
     if(!document.fullscreenElement){
